@@ -330,7 +330,7 @@ Release.tldr = "3–5 bullet 'what's new' summary"   ── status: ready
 - **Summarization.** Send the release notes to the **xAI (Grok) API** — an
   OpenAI-compatible `POST /v1/chat/completions` call (no SDK, just `net/http`) —
   and store a short, neutral "what's new" TL;DR (3–5 bullets, no marketing spin —
-  match the project's restrained voice). Default model `grok-3-mini` (small/fast,
+  match the project's restrained voice). Default model `grok-4.6` (small/fast,
   cheap for this low-volume use), overridable via `XAI_MODEL`. `XAI_API_KEY` is a
   Fly secret (runbook §9.1); it is a **server-side** call — the key never touches
   frontend source (`VITE_*` is public by rule).

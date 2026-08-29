@@ -23,7 +23,7 @@ primary_region = "iad"            # pick your closest Fly region
   # Secrets are NOT set here — use `fly secrets set`:
   #   GOMBIT_JWT_SECRET   (openssl rand -hex 32)
   #   XAI_API_KEY         (release TL;DR generation via xAI Grok, DESIGN.md §6a)
-  #   XAI_MODEL           (optional; defaults to grok-3-mini)
+  #   XAI_MODEL           (optional; defaults to grok-4.6)
   #   GOMBIT_GITHUB_WEBHOOK_SECRET (verifies the release webhook)
 
 [http_service]

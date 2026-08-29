@@ -25,7 +25,7 @@ type Summarizer struct {
 }
 
 // NewSummarizer builds a Summarizer from XAI_API_KEY (server-side only — never a
-// VITE_* value). XAI_MODEL overrides the model (default "grok-3-mini") and
+// VITE_* value). XAI_MODEL overrides the model (default "grok-4.6") and
 // XAI_BASE_URL the endpoint (default "https://api.x.ai/v1"). ok is false when no
 // API key is configured, so the caller can skip summarization rather than fail
 // ingestion.
@@ -36,7 +36,7 @@ func NewSummarizer() (*Summarizer, bool) {
 	}
 	model := strings.TrimSpace(os.Getenv("XAI_MODEL"))
 	if model == "" {
-		model = "grok-3-mini"
+		model = "grok-4.6"
 	}
 	baseURL := strings.TrimSpace(os.Getenv("XAI_BASE_URL"))
 	if baseURL == "" {
