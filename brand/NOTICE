@@ -1,0 +1,17 @@
+Mascot attribution
+==================
+
+`mascot.png` (the Gombit gopher) is a derivative work of the Go gopher.
+
+The Go gopher was designed by Renée French and is licensed under the
+Creative Commons Attribution 4.0 International License (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+(Earlier gopher artwork was released under CC BY 3.0; the attribution
+requirement is the same.)
+
+Because it is a derivative of a CC BY work, this mascot image is distributed
+under CC BY 4.0 as well — it is NOT covered by the repository's MIT LICENSE,
+which applies to the source code. If you reuse the image, keep this
+attribution.
+
+Credit: "The Go gopher was designed by Renée French." (https://go.dev/blog/gopher)

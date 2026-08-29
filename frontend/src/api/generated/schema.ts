@@ -215,6 +215,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List releases */
+        get: operations["list-releases"];
+        put?: never;
+        /** Create a release */
+        post: operations["create-release"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/releases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a release */
+        get: operations["get-release"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/github": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * GitHub release webhook
+         * @description Verifies the GitHub HMAC signature and ingests release events into the Release table.
+         */
+        post: operations["github-release-webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -279,6 +334,28 @@ export interface components {
              * @example 1299
              */
             price: number;
+        };
+        CreateReleaseInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/CreateReleaseInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Body */
+            body: string;
+            /** @description Name */
+            name: string;
+            /** @description PublishedAt */
+            published_at: string;
+            /** @description Tag */
+            tag: string;
+            /** @description Tldr */
+            tldr: string;
+            /** @description TldrStatus */
+            tldr_status: string;
+            /** @description Url */
+            url: string;
         };
         CredentialsBody: {
             /**
@@ -353,6 +430,16 @@ export interface components {
             data: components["schemas"]["ProductData"][] | null;
             meta?: components["schemas"]["PageMeta"];
         };
+        DataMetaListReleaseDataPageMeta: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/DataMetaListReleaseDataPageMeta.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ReleaseData"][] | null;
+            meta?: components["schemas"]["PageMeta"];
+        };
         DataMetaListRowPageMeta: {
             /**
              * Format: uri
@@ -392,6 +479,15 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["PublicUser"];
         };
+        DataReleaseData: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/DataReleaseData.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ReleaseData"];
+        };
         DataRow: {
             /**
              * Format: uri
@@ -402,6 +498,15 @@ export interface components {
             data: {
                 [key: string]: unknown;
             };
+        };
+        DataWebhookAck: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/DataWebhookAck.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["WebhookAck"];
         };
         DeleteResult: {
             /** @example true */
@@ -522,6 +627,36 @@ export interface components {
             kind: string;
             label_field: string;
             slug: string;
+        };
+        ReleaseData: {
+            /** @description Body */
+            body: string;
+            /**
+             * Format: int64
+             * @description Release identifier
+             * @example 1
+             */
+            id: number;
+            /** @description Name */
+            name: string;
+            /** @description PublishedAt */
+            published_at: string;
+            /** @description Tag */
+            tag: string;
+            /** @description Tldr */
+            tldr: string;
+            /** @description TldrStatus */
+            tldr_status: string;
+            /** @description Url */
+            url: string;
+        };
+        WebhookAck: {
+            /** @description Whether the event was accepted */
+            received: boolean;
+            /** @description Ingestion outcome */
+            status?: string;
+            /** @description Ingested release tag, if any */
+            tag?: string;
         };
     };
     responses: never;
@@ -1056,6 +1191,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataProductData"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "list-releases": {
+        parameters: {
+            query?: {
+                /** @description 1-based page */
+                page?: number;
+                /** @description Page size */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataMetaListReleaseDataPageMeta"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "create-release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReleaseInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataReleaseData"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "get-release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Release identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataReleaseData"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "github-release-webhook": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description GitHub event name */
+                "X-GitHub-Event"?: string;
+                /** @description HMAC-SHA256 signature of the raw body */
+                "X-Hub-Signature-256"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataWebhookAck"];
                 };
             };
             /** @description Error */

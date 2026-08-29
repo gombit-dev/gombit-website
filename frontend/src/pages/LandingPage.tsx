@@ -1,3 +1,4 @@
+import { ReleasesSection } from "../components/ReleasesSection";
 import mascotUrl from "../assets/mascot.png";
 import "../styles/landing.css";
 
@@ -78,66 +79,7 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section className="wrap releases" id="releases">
-          <div className="rel-head">
-            <h2>What&apos;s new</h2>
-            <p>Every GitHub release, summarized automatically. Here&apos;s the gist:</p>
-          </div>
-          <article className="release-card">
-            <div className="release-top">
-              <span className="tag-pill">v0.1.5</span>
-              <span className="rel-date">Aug 28, 2026</span>
-              <span className="ai-badge">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.6 4.9L18.5 8l-4.9 1.6L12 14.5l-1.6-4.9L5.5 8l4.9-1.1L12 2Zm6.5 9l.8 2.4 2.4.8-2.4.8-.8 2.4-.8-2.4-2.4-.8 2.4-.8.8-2.4ZM5 14l.9 2.6L8.5 17.5l-2.6.9L5 21l-.9-2.6L1.5 17.5l2.6-.9L5 14Z" /></svg>
-                TL;DR by AI
-              </span>
-            </div>
-            <h3>Admin fixes &amp; the v0.1 line</h3>
-            <ul className="tldr">
-              <li>
-                <svg className="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m20 6-11 11L4 12" /></svg>
-                Scaffold a typed Go API, React frontend, and admin from one <code>gombit new</code>.
-              </li>
-              <li>
-                <svg className="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m20 6-11 11L4 12" /></svg>
-                Atlas-backed versioned SQL migrations across SQLite, PostgreSQL, and MySQL.
-              </li>
-              <li>
-                <svg className="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m20 6-11 11L4 12" /></svg>
-                OpenAPI 3.1 emitted from handlers, with a generated TypeScript client and a drift check.
-              </li>
-              <li>
-                <svg className="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m20 6-11 11L4 12" /></svg>
-                Cookie sessions with CSRF, a runtime Django-style admin, and single-binary builds.
-              </li>
-            </ul>
-            <div className="release-foot">
-              <a href={`${REPO}/releases/latest`}>Read the full release notes
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
-              </a>
-              <a className="all" href={`${REPO}/releases`}>All releases</a>
-            </div>
-          </article>
-
-          <div className="rel-list">
-            <a className="rel-row" href={`${REPO}/releases/tag/v0.1.4`}>
-              <span className="tag-pill">v0.1.4</span>
-              <span className="rr-title">Admin permissions &amp; the benchmark suite</span>
-              <span className="rr-meta">
-                <span className="rr-date">Aug 20, 2026</span>
-                <svg className="rr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
-              </span>
-            </a>
-            <a className="rel-row" href={`${REPO}/releases/tag/v0.1.3`}>
-              <span className="tag-pill">v0.1.3</span>
-              <span className="rr-title">Cookie auth, MUI preset &amp; embedded builds</span>
-              <span className="rr-meta">
-                <span className="rr-date">Aug 12, 2026</span>
-                <svg className="rr-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
-              </span>
-            </a>
-          </div>
-        </section>
+        <ReleasesSection />
 
         <div className="admin-peek" aria-label="Preview of the Gombit admin">
           <div className="admin-bar">

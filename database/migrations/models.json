@@ -5,6 +5,10 @@
       "type_name": "Product"
     },
     {
+      "import_path": "github.com/gombit-dev/gombit-website/internal/release",
+      "type_name": "Release"
+    },
+    {
       "import_path": "github.com/gombit-dev/gombit/auth",
       "type_name": "Group"
     },

@@ -6,6 +6,7 @@ import (
 	"github.com/gombit-dev/gombit/database"
 
 	"github.com/gombit-dev/gombit-website/internal/product"
+	"github.com/gombit-dev/gombit-website/internal/release"
 )
 
 // OpenDatabase opens the SQL database from typed config.
@@ -24,6 +25,6 @@ func AutoMigrate(db *database.DB) error {
 		&auth.RefreshToken{},
 		&auth.Group{},
 		&auth.Permission{},
-		&product.Product{},
+		&product.Product{}, &release.Release{},
 	)
 }

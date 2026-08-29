@@ -145,3 +145,12 @@ stdin is a TTY. Refuses duplicate emails and hashes the password with the
 same bcrypt hasher as `/auth/register`. See
 [`docs/cli.md`](https://github.com/gombit-dev/gombit/blob/main/docs/cli.md#gombit-createsuperuser).
 
+## License
+
+Source code is [MIT licensed](LICENSE).
+
+The Gombit mascot ([`brand/mascot.png`](brand/mascot.png)) is a derivative of
+the Go gopher by Renée French and is licensed **CC BY 4.0**, separately from
+the code — see [`brand/NOTICE`](brand/NOTICE). Keep the attribution if you
+reuse it.
+
