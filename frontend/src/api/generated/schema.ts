@@ -225,8 +225,7 @@ export interface paths {
         /** List releases */
         get: operations["list-releases"];
         put?: never;
-        /** Create a release */
-        post: operations["create-release"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -334,28 +333,6 @@ export interface components {
              * @example 1299
              */
             price: number;
-        };
-        CreateReleaseInputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/CreateReleaseInputBody.json
-             */
-            readonly $schema?: string;
-            /** @description Body */
-            body: string;
-            /** @description Name */
-            name: string;
-            /** @description PublishedAt */
-            published_at: string;
-            /** @description Tag */
-            tag: string;
-            /** @description Tldr */
-            tldr: string;
-            /** @description TldrStatus */
-            tldr_status: string;
-            /** @description Url */
-            url: string;
         };
         CredentialsBody: {
             /**
@@ -1225,39 +1202,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataMetaListReleaseDataPageMeta"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    "create-release": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateReleaseInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataReleaseData"];
                 };
             };
             /** @description Error */

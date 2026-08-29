@@ -557,11 +557,16 @@ nightly `fly volumes snapshot`). Low stakes — content is reproducible from the
 
 ## 13. Open questions (decide before the phase they gate)
 
-1. **Rendering strategy (gates Phase 0 — the highest-risk decision):** full
-   build-time prerender/SSG of every content route (recommended, best SEO) vs.
-   prerender docs only + dynamic app shell vs. plain SPA (simplest, worst SEO).
-   This is the one that can turn the site into a "second engineering project" —
-   settle it before building content (§4.4).
+1. ~~Rendering strategy~~ **DECIDED: build-time prerender + client hydration.**
+   A Vite SSR pass (`src/entry-server.tsx` + `scripts/prerender.mjs`, run from the
+   frontend `build`) renders each content route to static HTML injected into
+   `dist/index.html`; the client `hydrateRoot`s it (falls back to `createRoot` in
+   `gombit dev`, where `#root` is empty). Implemented for the landing route — the
+   embedded binary now serves the full hero/features/copy in the initial
+   response, and the release list hydrates client-side. Docs routes follow the
+   same mechanism when built (Phase 2). Kept deliberately small: one SSR entry,
+   one prerender script, no SSR framework, no server runtime beyond the existing
+   single binary.
 2. **Docs sourcing (gates Phase 2):** sync canonical `.md` from the `gombit` repo
    (recommended) vs. author natively here? Determines repo wiring and CI.
 3. ~~Host + data~~ **DECIDED (§9):** Fly.io + SQLite volume, Cloudflare in front

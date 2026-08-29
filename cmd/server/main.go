@@ -46,7 +46,8 @@ func main() {
 	})
 
 	product.Register(app)
-	release.Register(app)
+	// Read-only release API; ingestion is via the webhook, editing via admin.
+	release.RegisterPublic(app)
 	release.RegisterWebhook(app)
 
 	// Manage releases (and their AI TL;DRs) through the runtime admin.

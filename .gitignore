@@ -5,6 +5,7 @@
 tmp/
 node_modules/
 dist/
+dist-server/
 bin/
 internal/web/static/*
 !internal/web/static/.keep
