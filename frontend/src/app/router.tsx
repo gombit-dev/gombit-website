@@ -14,6 +14,7 @@ import { generatedResourceRoutes } from "../resources";
 const DocsLayout = lazy(() => import("../pages/DocsLayout").then((m) => ({ default: m.DocsLayout })));
 const DocsIndex = lazy(() => import("../pages/DocsIndex").then((m) => ({ default: m.DocsIndex })));
 const DocsPage = lazy(() => import("../pages/DocsPage").then((m) => ({ default: m.DocsPage })));
+const BenchmarksPage = lazy(() => import("../pages/BenchmarksPage").then((m) => ({ default: m.BenchmarksPage })));
 
 export function AppRouter() {
   return (
@@ -32,6 +33,14 @@ export function AppRouter() {
           <Route index element={<DocsIndex />} />
           <Route path=":slug" element={<DocsPage />} />
         </Route>
+        <Route
+          path="benchmarks"
+          element={
+            <Suspense fallback={null}>
+              <BenchmarksPage />
+            </Suspense>
+          }
+        />
         <Route path="login" element={<LoginPage />} />
         {/* Authenticated app surface (example CRUD, behind session auth). */}
         <Route element={<RequireAuth />}>

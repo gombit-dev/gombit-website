@@ -31,7 +31,7 @@ export function LandingPage() {
           <nav className="nav-links">
             <a href="/guide">Docs</a>
             <a href="/guide/tutorial">Tutorial</a>
-            <a href={`${REPO}/tree/main/benchmarks`}>Benchmarks</a>
+            <a href="/benchmarks">Benchmarks</a>
             <a href="#releases">Releases</a>
             <a href={REPO}>GitHub</a>
           </nav>

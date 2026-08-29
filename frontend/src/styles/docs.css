@@ -148,3 +148,11 @@
   .docs-search { max-width: none; }
   .docs-topnav { display: none; }
 }
+
+/* ---------- Benchmarks page ---------- */
+.benchmarks-page { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+.benchmarks-page .doc { max-width: none; }
+.benchmarks-page .doc-body h3 { font-family: var(--display); font-weight: 700; font-size: 1.2rem; margin: 34px 0 12px; }
+.benchmarks-more { margin-top: 30px; }
+.benchmarks-more a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.benchmarks-more a:hover { color: var(--accent-hover); }

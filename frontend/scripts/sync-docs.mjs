@@ -120,4 +120,41 @@ function sync() {
   console.log(`sync-docs: wrote ${pages.length} docs + manifest from ${docsSrc}`);
 }
 
+// README links are relative to the repo root (not docs/).
+function rewriteReadmeLink(target) {
+  if (/^(https?:|mailto:|#)/.test(target)) return target;
+  const [path, anchor = ""] = target.split("#");
+  const suffix = anchor ? `#${anchor}` : "";
+  const clean = path.replace(/^\.\//, "");
+  const kind = /\.[a-z0-9]+$/i.test(clean) ? "blob" : "tree";
+  return `${REPO}/${kind}/main/${clean}${suffix}`;
+}
+
+// Extract the generated benchmark block from the framework README (between the
+// benchmark-results markers) into a page. The numbers stay traceable to the
+// drift-checked generator; we don't hand-edit them.
+function syncBenchmarks() {
+  const readmePath = resolve(docsSrc, "..", "README.md");
+  if (!existsSync(readmePath)) {
+    console.warn(`sync-docs: ${readmePath} not found; skipping benchmarks`);
+    return;
+  }
+  const readme = readFileSync(readmePath, "utf-8");
+  const startMark = "<!-- benchmark-results:start -->";
+  const endMark = "<!-- benchmark-results:end -->";
+  const start = readme.indexOf(startMark);
+  const end = readme.indexOf(endMark);
+  if (start === -1 || end === -1) {
+    console.warn("sync-docs: benchmark markers not found in README; skipping benchmarks");
+    return;
+  }
+  const block = readme
+    .slice(start + startMark.length, end)
+    .trim()
+    .replace(/\]\(([^)]+)\)/g, (_m, target) => `](${rewriteReadmeLink(target)})`);
+  writeFileSync(resolve(root, "src/content/benchmarks.md"), block + "\n");
+  console.log("sync-docs: wrote benchmarks.md from README");
+}
+
 sync();
+syncBenchmarks();
