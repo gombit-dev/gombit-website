@@ -4,6 +4,22 @@ import "../styles/landing.css";
 
 const REPO = "https://github.com/gombit-dev/gombit";
 
+const Check = () => (
+  <svg className="ck-yes" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-label="included"><path d="m20 6-11 11L4 12" /></svg>
+);
+
+// [feature, what you'd do with a bare router] — Gombit includes them all.
+const compareRows: Array<[string, string]> = [
+  ["Routing", "yes"],
+  ["ORM", "choose one"],
+  ["Migrations", "choose one"],
+  ["OpenAPI 3.1", "choose one"],
+  ["TypeScript client", "choose one"],
+  ["Auth & sessions", "choose one"],
+  ["Django-style admin", "build it"],
+  ["React integration", "build it"],
+];
+
 export function LandingPage() {
   return (
     <div className="landing">
@@ -52,6 +68,39 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section className="wrap chain">
+          <h2>One source of truth.</h2>
+          <p className="chain-lede">Declare your model once. It drives the schema and the API; the API drives the client. Nothing hand-synchronized.</p>
+          <div className="chain-diagram">
+            <div className="node node-source">Your GORM model</div>
+            <div className="chain-tracks">
+              <div className="track">
+                <span className="track-label">Schema</span>
+                <span className="node">Atlas diff</span>
+                <span className="arrow" aria-hidden="true">→</span>
+                <span className="node">Versioned SQL</span>
+              </div>
+              <div className="track">
+                <span className="track-label">API</span>
+                <span className="node">Huma handler</span>
+                <span className="arrow" aria-hidden="true">→</span>
+                <span className="node">OpenAPI 3.1</span>
+                <span className="arrow" aria-hidden="true">→</span>
+                <span className="node">TypeScript client</span>
+                <span className="arrow" aria-hidden="true">→</span>
+                <span className="node">React</span>
+              </div>
+              <div className="track">
+                <span className="track-label">Admin</span>
+                <span className="node">admin registry</span>
+                <span className="arrow" aria-hidden="true">→</span>
+                <span className="node">/admin/</span>
+              </div>
+            </div>
+          </div>
+          <p className="chain-note">Both arrows out of your model are the point — and a drift check fails CI if the API and its generated client ever disagree.</p>
+        </section>
+
         <section className="wrap features">
           <h2>Everything you need.</h2>
           <div className="cards">
@@ -98,6 +147,34 @@ export function LandingPage() {
             </div>
           </div>
         </div>
+        <section className="wrap compare">
+          <h2>Gombit, or assemble it yourself.</h2>
+          <p className="compare-lede">Every row below is a decision you don&apos;t have to make — and then wire together.</p>
+          <div className="compare-table-wrap">
+            <table className="compare-table">
+              <thead>
+                <tr>
+                  <th scope="col"><span className="visually-hidden">Feature</span></th>
+                  <th scope="col" className="col-gombit">Gombit</th>
+                  <th scope="col">Gin / Echo / Fiber</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compareRows.map(([label, other]) => (
+                  <tr key={label}>
+                    <th scope="row">{label}</th>
+                    <td className="col-gombit"><Check /></td>
+                    <td>{other === "yes" ? <Check /> : <span className="cell-muted">{other}</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="compare-note">
+            Gombit <em>is</em> Gin underneath, and hands it back on request — <code>app.Router()</code>.
+            Want a bare router? Use one. Want the batteries wired together and agreeing with each other? Use Gombit.
+          </p>
+        </section>
       </main>
 
       <footer className="site-footer">
