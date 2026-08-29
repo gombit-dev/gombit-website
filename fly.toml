@@ -1,0 +1,53 @@
+# fly.toml — gombit.dev
+#
+# Single Gombit binary (API + embedded SPA + admin) on one small machine with a
+# persistent SQLite volume. Cloudflare sits in front for DNS/TLS/CDN (see the
+# deploy runbook in DESIGN.md §9.1). Keep this to ONE machine: SQLite is
+# single-writer and migrations run at boot (deploy/docker-entrypoint.sh).
+
+app            = "gombit-website"
+primary_region = "iad"            # pick your closest Fly region
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  GOMBIT_ENV             = "production"
+  GOMBIT_HTTP_ADDR       = ":8080"
+  GOMBIT_DATABASE_DRIVER = "sqlite"
+  GOMBIT_DATABASE_DSN    = "file:/data/gombit.db?cache=shared&_fk=1"
+  GOMBIT_AUTH_MODE       = "cookie"
+  GOMBIT_COOKIE_SECURE   = "true"
+  # Behind Fly's proxy (and Cloudflare); trust the local hop for client IPs.
+  GOMBIT_HTTP_TRUSTED_PROXIES = "127.0.0.1/8"
+  # Secrets are NOT set here — use `fly secrets set`:
+  #   GOMBIT_JWT_SECRET   (openssl rand -hex 32)
+  #   ANTHROPIC_API_KEY   (release TL;DR generation, DESIGN.md §6a)
+  #   GOMBIT_GITHUB_WEBHOOK_SECRET (verifies the release webhook)
+
+[http_service]
+  internal_port        = 8080
+  force_https          = true
+  auto_stop_machines   = "off"    # keep the single instance warm
+  auto_start_machines  = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    method       = "GET"
+    path         = "/readyz"
+    interval     = "15s"
+    timeout      = "2s"
+    grace_period = "10s"
+
+[mounts]
+  source      = "gombit_data"
+  destination = "/data"
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "512mb"
