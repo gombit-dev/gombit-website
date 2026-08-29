@@ -30,8 +30,10 @@ func main() {
 		framework.WithDatabase(db),
 		framework.WithEmbeddedFrontend(web.FS()),
 		// The GitHub webhook is a server-to-server POST that can't carry a
-		// double-submit CSRF token; it authenticates via HMAC signature.
-		framework.WithCSRFExemptPaths(cfg.API.Prefix+"/webhooks/github"),
+		// double-submit CSRF token and verifies an HMAC over the raw body, so it
+		// needs the body unmodified (no XSS re-encoding). WithRawBodyPaths covers
+		// both.
+		framework.WithRawBodyPaths(cfg.API.Prefix+"/webhooks/github"),
 	)
 	if err != nil {
 		_ = db.Close()
