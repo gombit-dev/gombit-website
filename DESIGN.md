@@ -314,7 +314,7 @@ POST /api/v1/webhooks/github   (Huma handler, verifies GOMBIT_GITHUB_WEBHOOK_SEC
         │  store tag, name, body (release notes), URL, published_at
         ▼
 Release row (GORM / SQLite)  ── status: pending_summary
-        │  summarize the release notes with the Claude API
+        │  summarize the release notes with the xAI (Grok) API
         ▼
 Release.tldr = "3–5 bullet 'what's new' summary"   ── status: ready
         │  purge Cloudflare cache for / and /releases
@@ -327,13 +327,13 @@ Release.tldr = "3–5 bullet 'what's new' summary"   ── status: ready
   `GOMBIT_GITHUB_WEBHOOK_SECRET`. It only acts on `action: "published"` release
   events; everything else is a 204 no-op. Ingestion is idempotent on the release
   tag (re-delivered webhooks don't duplicate rows).
-- **Summarization.** Send the release notes to the Claude API and store a short,
-  neutral "what's new" TL;DR (3–5 bullets, no marketing spin — match the project's
-  restrained voice). Use a **small, fast model (Claude Haiku 4.5)** — this is
-  cheap, low-volume summarization; Sonnet is the upgrade only if quality needs it.
-  `ANTHROPIC_API_KEY` is a Fly secret (already in the runbook, §9.1); it is a
-  **server-side** call — the key never touches frontend source (`VITE_*` is
-  public by rule).
+- **Summarization.** Send the release notes to the **xAI (Grok) API** — an
+  OpenAI-compatible `POST /v1/chat/completions` call (no SDK, just `net/http`) —
+  and store a short, neutral "what's new" TL;DR (3–5 bullets, no marketing spin —
+  match the project's restrained voice). Default model `grok-3-mini` (small/fast,
+  cheap for this low-volume use), overridable via `XAI_MODEL`. `XAI_API_KEY` is a
+  Fly secret (runbook §9.1); it is a **server-side** call — the key never touches
+  frontend source (`VITE_*` is public by rule).
 - **Resilience.** Summarize out of the webhook's request path (the webhook just
   persists + enqueues), so a slow or failing AI call never makes GitHub's delivery
   time out. Because v0.1 has no job queue (an M6 battery we won't pull in), the
@@ -449,7 +449,7 @@ fly volumes create gombit_data --size 1 --region iad         # SQLite lives here
 fly secrets set \
   GOMBIT_JWT_SECRET="$(openssl rand -hex 32)" \
   GOMBIT_GITHUB_WEBHOOK_SECRET="$(openssl rand -hex 32)" \
-  ANTHROPIC_API_KEY="sk-ant-…"                                # release TL;DR (§6a)
+  XAI_API_KEY="xai-…"                                         # release TL;DR via xAI Grok (§6a)
 fly deploy
 fly ssh console -C "gombit createsuperuser --email you@example.com"  # admin login
 ```
@@ -544,7 +544,7 @@ nightly `fly volumes snapshot`). Low stakes — content is reproducible from the
 - Add the `Release` / `BenchmarkRun` / `ShowcaseApp` models + migrations + Huma
   handlers; regenerate the TS client. Ship the **GitHub-release webhook + AI
   TL;DR** pipeline (§6a) — signature verification, ingest, summarize with the
-  Claude API, Cloudflare purge — this is the flagship dogfood feature. `/releases/`
+  xAI Grok API, Cloudflare purge — this is the flagship dogfood feature. `/releases/`
   and `/benchmarks/` (methodology-first, numbers from the snapshot, caveats intact)
   consume the generated client. Stand up `/admin/` and seed from `CHANGELOG.md`.
   *This phase is what makes the site a real Gombit app rather than a static site in

@@ -29,7 +29,7 @@ const (
 // database: it is write-driven and event-driven (DESIGN.md §6a).
 type WebhookHandler struct {
 	DB         *gorm.DB
-	Summarizer *Summarizer // nil when ANTHROPIC_API_KEY is unset; TL;DR is skipped.
+	Summarizer *Summarizer // nil when XAI_API_KEY is unset; TL;DR is skipped.
 }
 
 // RegisterWebhook mounts the GitHub release webhook. Call it from main after

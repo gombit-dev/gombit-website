@@ -22,7 +22,8 @@ primary_region = "iad"            # pick your closest Fly region
   GOMBIT_HTTP_TRUSTED_PROXIES = "127.0.0.1/8"
   # Secrets are NOT set here — use `fly secrets set`:
   #   GOMBIT_JWT_SECRET   (openssl rand -hex 32)
-  #   ANTHROPIC_API_KEY   (release TL;DR generation, DESIGN.md §6a)
+  #   XAI_API_KEY         (release TL;DR generation via xAI Grok, DESIGN.md §6a)
+  #   XAI_MODEL           (optional; defaults to grok-3-mini)
   #   GOMBIT_GITHUB_WEBHOOK_SECRET (verifies the release webhook)
 
 [http_service]
