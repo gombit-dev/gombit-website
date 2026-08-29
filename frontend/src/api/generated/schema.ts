@@ -317,12 +317,6 @@ export interface components {
         };
         CreateProductInputBody: {
             /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/CreateProductInputBody.json
-             */
-            readonly $schema?: string;
-            /**
              * @description Human-readable product name
              * @example Notebook
              */
@@ -335,12 +329,6 @@ export interface components {
             price: number;
         };
         CredentialsBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/CredentialsBody.json
-             */
-            readonly $schema?: string;
             /**
              * Format: email
              * @description Account email
@@ -361,128 +349,50 @@ export interface components {
             csrf_token: string;
         };
         DataCsrfResult: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataCsrfResult.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["CsrfResult"];
         };
         DataDeleteResult: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataDeleteResult.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["DeleteResult"];
         };
         DataLogoutResult: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataLogoutResult.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["LogoutResult"];
         };
         DataMetaCatalogCatalogAux: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataMetaCatalogCatalogAux.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["Catalog"];
             meta?: components["schemas"]["CatalogAux"];
         };
         DataMetaListProductDataPageMeta: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataMetaListProductDataPageMeta.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["ProductData"][] | null;
             meta?: components["schemas"]["PageMeta"];
         };
         DataMetaListReleaseDataPageMeta: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataMetaListReleaseDataPageMeta.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["ReleaseData"][] | null;
             meta?: components["schemas"]["PageMeta"];
         };
         DataMetaListRowPageMeta: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataMetaListRowPageMeta.json
-             */
-            readonly $schema?: string;
             data: {
                 [key: string]: unknown;
             }[] | null;
             meta?: components["schemas"]["PageMeta"];
         };
         DataModelMeta: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataModelMeta.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["ModelMeta"];
         };
         DataProductData: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataProductData.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["ProductData"];
         };
         DataPublicUser: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataPublicUser.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["PublicUser"];
         };
         DataReleaseData: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataReleaseData.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["ReleaseData"];
         };
         DataRow: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataRow.json
-             */
-            readonly $schema?: string;
             data: {
                 [key: string]: unknown;
             };
         };
         DataWebhookAck: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/DataWebhookAck.json
-             */
-            readonly $schema?: string;
             data: components["schemas"]["WebhookAck"];
         };
         DeleteResult: {
@@ -498,12 +408,6 @@ export interface components {
             request_id?: string;
         };
         ErrorEnvelope: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/ErrorEnvelope.json
-             */
-            readonly $schema?: string;
             error: components["schemas"]["ErrorBody"];
         };
         FieldMeta: {
@@ -514,12 +418,6 @@ export interface components {
             type: string;
         };
         LoginBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/LoginBody.json
-             */
-            readonly $schema?: string;
             /**
              * Format: email
              * @description Account email

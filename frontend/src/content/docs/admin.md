@@ -87,8 +87,10 @@ overlapping field names do not leak onto the next model or row. Edit
 requires a GET of the current row (`actions.detail` + `can.view`); if
 detail is disabled, the edit screen is hidden rather than PATCHing empty
 boolean defaults (`false`) over stored `true` values.
-Field widgets cover the closed ADMIN-1 types; `belongs_to` is an FK
-input; `has_many` is read-only.
+Field widgets cover the closed field types; `belongs_to` is a single-select
+picker (storing the foreign key); `has_many` is read-only; `many_to_many` is a
+multi-select. The relation pickers are backed by the related model's list
+endpoint and show its label field.
 `datetime-local` values are converted to RFC3339 before POST/PATCH.
 Empty optional (non-boolean) inputs — string, text, date, datetime, json,
 number, relation — are sent as JSON `null` so a partial PATCH can clear
@@ -187,11 +189,28 @@ arbitrary Go types.
 Closed field types: `string`, `text`, `integer`, `float`, `decimal`,
 `boolean`, `datetime`, `date`, `uuid`, `json`, `relation`.
 
-Relation `kind` is `belongs_to` or `has_many`. **`belongs_to`** is stored as
-the foreign key on create/update. **`has_many` is meta-only** in ADMIN-1:
+Relation `kind` is `belongs_to`, `has_many`, or `many_to_many`. **`belongs_to`**
+is stored as the foreign key on create/update; auto-derivation (`FieldsFrom`)
+renders the FK column as a relation field (target `slug` = the related table,
+label = the field name of its `name` column when present) so the SPA shows a
+picker instead of a
+bare integer, and the picker submits the selected primary key. **`has_many` is
+meta-only**:
 the data plane does not nest related collections and treats the field as
 read-only. `Register` rejects `has_many` (and any field with no SQL column)
 in Search, Filter, or Ordering.
+
+**`many_to_many`** round-trips as a list of related primary keys (#223): the
+list/detail responses read the related ids (the association is preloaded), and
+create/update sync the join table to the submitted id list. An empty list
+clears the relation; omitting the field on a PATCH leaves it unchanged. Every
+submitted id must reference an existing related row — a missing id is a 422, so
+you cannot point the join table at a row that does not exist. Auto-derivation
+(`FieldsFrom`) emits a `many_to_many` relation field for each association (with
+the related table as the default target `slug`) instead of dropping it; register
+an explicit `admin.Field` to set the `slug`/`label_field` when they differ. The
+framework admin SPA renders it as a multi-select backed by the related model's
+list endpoint.
 
 `Register` does not AutoMigrate. The application still owns schema
 (Atlas / `AutoMigrate` in examples).
