@@ -17,10 +17,14 @@ const app = (
   </StrictMode>
 );
 
-// Production builds prerender the landing route into #root (scripts/prerender.mjs),
-// so hydrate when there is server markup; otherwise (e.g. `gombit dev`) mount fresh.
-if (root.hasChildNodes()) {
+// Production builds prerender one route into #root (scripts/prerender.mjs), but
+// the embedded server returns that same index.html for every SPA route. Hydrate
+// only when the prerendered route matches the current path; otherwise the markup
+// is for a different page, so replace it with a fresh client render (also the
+// `gombit dev` path, where #root is empty).
+if (root.getAttribute("data-prerender") === window.location.pathname) {
   hydrateRoot(root, app);
 } else {
+  root.textContent = "";
   createRoot(root).render(app);
 }

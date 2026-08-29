@@ -4,36 +4,7 @@
    Design tokens live on :root; every visual rule is scoped under `.landing`
    so it never leaks into the login or admin surfaces. */
 
-:root {
-  --bg: #ffffff;
-  --bg-soft: #f6f8fc;
-  --ink: #0f1729;
-  --ink-2: #46506a;
-  --muted: #6b7488;
-  --accent: #2563eb;
-  --accent-bright: #3b82f6;
-  --accent-hover: #1d4ed8;
-  --accent-wash: #eaf1ff;
-  --accent-wash-2: #f3f7ff;
-  --border: #e6eaf2;
-  --border-2: #eef1f7;
-  --card: #ffffff;
-  --shadow-sm: 0 1px 2px rgba(16, 23, 41, .04);
-  --shadow-md: 0 12px 30px -12px rgba(37, 99, 235, .14), 0 4px 10px -6px rgba(16, 23, 41, .06);
-  --shadow-btn: 0 8px 18px -6px rgba(37, 99, 235, .45);
-  --term-bg: #0f1a2e;
-  --term-bar: #16243f;
-  --term-text: #d7e2f4;
-  --term-prompt: #4f9dff;
-  --radius: 16px;
-  --maxw: 1180px;
-  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --display: "Poppins", "Inter", system-ui, sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-}
-
-* { box-sizing: border-box; }
-body { margin: 0; }
+@import "./tokens.css";
 
 .landing {
   min-height: 100vh;

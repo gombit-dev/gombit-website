@@ -1,0 +1,108 @@
+[
+  {
+    "title": "Getting started",
+    "pages": [
+      {
+        "slug": "installation",
+        "title": "Installation"
+      },
+      {
+        "slug": "tutorial",
+        "title": "Tutorial"
+      },
+      {
+        "slug": "cli",
+        "title": "CLI"
+      }
+    ]
+  },
+  {
+    "title": "Runtime",
+    "pages": [
+      {
+        "slug": "configuration",
+        "title": "Configuration"
+      },
+      {
+        "slug": "lifecycle",
+        "title": "Lifecycle"
+      },
+      {
+        "slug": "routing",
+        "title": "Routing"
+      },
+      {
+        "slug": "logging",
+        "title": "Logging"
+      },
+      {
+        "slug": "caching",
+        "title": "Caching"
+      }
+    ]
+  },
+  {
+    "title": "Data",
+    "pages": [
+      {
+        "slug": "database",
+        "title": "Database"
+      },
+      {
+        "slug": "migrations",
+        "title": "Migrations"
+      }
+    ]
+  },
+  {
+    "title": "Contract",
+    "pages": [
+      {
+        "slug": "contract",
+        "title": "Contract & validation"
+      },
+      {
+        "slug": "openapi",
+        "title": "OpenAPI"
+      },
+      {
+        "slug": "typescript-client",
+        "title": "TypeScript client"
+      }
+    ]
+  },
+  {
+    "title": "Frontend",
+    "pages": [
+      {
+        "slug": "frontend",
+        "title": "React frontend"
+      },
+      {
+        "slug": "frontend-mui",
+        "title": "MUI preset"
+      },
+      {
+        "slug": "deployment",
+        "title": "Deployment"
+      }
+    ]
+  },
+  {
+    "title": "Auth & admin",
+    "pages": [
+      {
+        "slug": "authentication",
+        "title": "Authentication (JWT)"
+      },
+      {
+        "slug": "authentication-cookie",
+        "title": "Cookie auth & CSRF"
+      },
+      {
+        "slug": "admin",
+        "title": "Admin"
+      }
+    ]
+  }
+]

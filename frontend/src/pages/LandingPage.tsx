@@ -13,13 +13,13 @@ export function LandingPage() {
             Gombit
           </a>
           <nav className="nav-links">
-            <a href="#docs">Docs</a>
-            <a href="#tutorial">Tutorial</a>
-            <a href="#benchmarks">Benchmarks</a>
+            <a href="/guide">Docs</a>
+            <a href="/guide/tutorial">Tutorial</a>
+            <a href={`${REPO}/tree/main/benchmarks`}>Benchmarks</a>
             <a href="#releases">Releases</a>
             <a href={REPO}>GitHub</a>
           </nav>
-          <a className="btn btn-primary" href={`${REPO}#quick-start`}>Get Started</a>
+          <a className="btn btn-primary" href="/guide/installation">Get Started</a>
         </div>
       </header>
 
@@ -30,7 +30,7 @@ export function LandingPage() {
             <p className="tagline">Django&apos;s productivity. Go&apos;s runtime.</p>
             <p className="lede">Build full-stack applications with typed APIs, migrations, authentication, React, and an admin — without assembling the stack yourself.</p>
             <div className="cta-row">
-              <a className="btn btn-primary" href={`${REPO}#quick-start`}>Get Started</a>
+              <a className="btn btn-primary" href="/guide/installation">Get Started</a>
               <a className="btn btn-ghost" href={REPO}>
                 <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.32c-2.23.49-2.7-1.08-2.7-1.08-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.81.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z" /></svg>
                 View on GitHub
@@ -105,7 +105,7 @@ export function LandingPage() {
           <span>© 2026 Gombit · MIT licensed</span>
           <nav>
             <a href={REPO}>GitHub</a>
-            <a href="#docs">Docs</a>
+            <a href="/guide">Docs</a>
             <a href={`${REPO}/blob/main/LICENSE`}>License</a>
           </nav>
         </div>

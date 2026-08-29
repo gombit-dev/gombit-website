@@ -17,7 +17,10 @@ if (!template.includes(marker)) {
   throw new Error(`prerender: '${marker}' not found in dist/index.html`);
 }
 
-const html = template.replace(marker, `<div id="root">${render()}</div>`);
+// Tag which route this markup is for. The embedded server returns this single
+// index.html for every SPA route, so the client hydrates only when the tag
+// matches the current path and otherwise client-renders (see main.tsx).
+const html = template.replace(marker, `<div id="root" data-prerender="/">${render()}</div>`);
 writeFileSync(indexPath, html);
 rmSync(resolve(root, "dist-server"), { recursive: true, force: true });
 

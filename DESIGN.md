@@ -166,25 +166,26 @@ deploy.
 ```text
 gombit.dev/
   /                     landing (marketing)
-  /docs/
+  /guide/               documentation (at /guide, not /docs — §13 #2)
     installation
     tutorial
-    project-structure         # "app layout" — feature packages under internal/
     cli
     configuration             # config.md
     lifecycle                 # framework.App, OnStart/OnStop
     routing                   # router.md + escape hatch
-    models-and-database       # database.md
+    logging
+    caching                   # cache.md
+    database
     migrations
     contract                  # contract.md + envelope
     openapi
     typescript-client         # client.md + drift check
     frontend                  # frontend.md
     frontend-mui
-    authentication            # auth.md (bearer) + auth-cookie.md
-    admin
     deployment                # build.md, --embed single binary
-    caching                   # cache.md
+    authentication            # auth.md (bearer)
+    authentication-cookie     # auth-cookie.md + CSRF
+    admin
   /benchmarks/          methodology-first performance page
   /releases/            GitHub releases + AI TL;DR (§6a); seeded from CHANGELOG.md
                         (subsumes /changelog/)
@@ -567,8 +568,20 @@ nightly `fly volumes snapshot`). Low stakes — content is reproducible from the
    same mechanism when built (Phase 2). Kept deliberately small: one SSR entry,
    one prerender script, no SSR framework, no server runtime beyond the existing
    single binary.
-2. **Docs sourcing (gates Phase 2):** sync canonical `.md` from the `gombit` repo
-   (recommended) vs. author natively here? Determines repo wiring and CI.
+2. ~~Docs sourcing~~ **DECIDED: sync from `gombit`, committed.**
+   `frontend/scripts/sync-docs.mjs` copies a curated set of `gombit/docs/*.md`
+   into `frontend/src/content/docs/`, rewriting links (in-set → `/guide/<slug>`,
+   everything else → GitHub blobs) and emitting a nav manifest. The synced files
+   are committed so the single binary is self-contained; re-run the script when
+   the framework docs change (CI can run it against a pinned checkout later).
+   **The docs live at `/guide`, not `/docs`:** the framework reserves `/docs`
+   for its Huma Swagger UI and does not release the path even when
+   `GOMBIT_DOCS_ENABLED=false` (it 404s), so `/docs` can't fall through to the
+   SPA — a dogfooding finding worth a framework issue (make the Swagger path
+   configurable, or free it when disabled). `/guide` follows the Vue/Vite
+   convention; the nav label stays "Docs". Docs pages are client-rendered and
+   code-split; per-route prerender is a follow-up (needs per-route serving,
+   which the single-index embed doesn't do — see §4.4).
 3. ~~Host + data~~ **DECIDED (§9):** Fly.io + SQLite volume, Cloudflare in front
    for DNS/TLS/CDN. Domain `gombit.dev` already registered.
 4. **Scaffold UI preset (gates Phase 0):** `--ui mui` for the admin/CRUD ergonomics
