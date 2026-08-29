@@ -64,8 +64,10 @@ COPY --from=build /src/database      /app/database
 COPY deploy/docker-entrypoint.sh     /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Run as a non-root user; /data is the Fly volume mount (see fly.toml).
-RUN useradd -u 10001 -m app && mkdir -p /data && chown app:app /data
+# Run as a non-root user; /data is the Fly volume mount (see fly.toml). Own the
+# whole /app tree so the app user can read the migrations dir (copied 0750) and
+# write any temp files during `gombit db migrate`.
+RUN useradd -u 10001 -m app && mkdir -p /data && chown -R app:app /app /data
 USER app
 
 EXPOSE 8080
