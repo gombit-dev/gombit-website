@@ -131,9 +131,14 @@ real admin:
   compiles them to React routes at build. Sidebar nav from a hand-maintained
   manifest mirroring §5. Code highlighting via Shiki (build-time). Mermaid
   rendered at build time (the README architecture diagram is the hero visual).
-- **Search:** run **Pagefind** over the prerendered HTML (§4.4 prerender). It's
-  static, framework-agnostic, and needs no search service or API — the cleanest
-  fit even inside a Gombit app.
+- **Search (DECIDED — client-side index, not Pagefind):** docs are client-
+  rendered SPA routes, so their content is already bundled in the docs chunk;
+  Pagefind (which crawls per-route static HTML we don't emit) has nothing to
+  index and its content-offloading benefit is moot. Instead a small in-memory
+  index (`src/content/search.ts`) searches the already-loaded markdown —
+  instant, no binary, no index files, no service. Title/heading hits rank above
+  body hits; results show a snippet. If docs ever move to per-route prerender,
+  Pagefind (or its Node indexing API) becomes viable again.
 - **Prerender / SEO:** add a build-time prerender of all content routes (landing +
   every docs page) to static HTML that hydrates into the SPA (e.g. a
   `vite-plugin-ssr`/SSG-style pass, or a headless-Chromium prerender of the route
