@@ -26,6 +26,10 @@ jobs:
     name: Build image & deploy
     needs: test
     runs-on: ubuntu-latest
+    # Records a GitHub Deployment so it shows in the repo's Deployments panel.
+    environment:
+      name: production
+      url: https://gombit.dev
     # Never run two deploys at once, and don't cancel one mid-flight.
     concurrency:
       group: fly-deploy
