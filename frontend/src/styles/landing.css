@@ -17,6 +17,10 @@
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Safety net: no section should ever push the page wider than the viewport.
+     `clip` (unlike `hidden`) doesn't establish a scroll container, so the
+     sticky header stays anchored to the viewport. */
+  overflow-x: clip;
 }
 
 .landing .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
@@ -46,8 +50,37 @@
 .landing .btn-ghost:hover { border-color: #cdd6e6; transform: translateY(-1px); }
 .landing .nav .btn { padding: 11px 20px; }
 
+/* Mobile menu — hidden on desktop, revealed in the ≤900px query below.
+   Built on <details> so it needs no client JS and is SSR-hydration safe. */
+.landing .nav-menu { display: none; position: relative; }
+.landing .nav-toggle {
+  list-style: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 11px;
+  background: #fff; color: var(--ink); cursor: pointer; box-shadow: var(--shadow-sm);
+}
+.landing .nav-toggle::-webkit-details-marker { display: none; }
+.landing .nav-toggle svg { width: 22px; height: 22px; }
+.landing .nav-icon-close { display: none; }
+.landing .nav-menu[open] .nav-icon-open { display: none; }
+.landing .nav-menu[open] .nav-icon-close { display: inline; }
+.landing .nav-drawer {
+  position: absolute; right: 0; top: calc(100% + 12px);
+  display: flex; flex-direction: column; min-width: 210px; padding: 8px;
+  background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-md);
+}
+.landing .nav-drawer a {
+  padding: 11px 14px; border-radius: 9px; color: var(--ink-2); font-weight: 500; font-size: 16px;
+  transition: background .12s ease, color .12s ease;
+}
+.landing .nav-drawer a:hover { background: var(--bg-soft); color: var(--accent); }
+
 /* ---------- Hero ---------- */
 .landing .hero { display: grid; grid-template-columns: 1.05fr .95fr; align-items: center; gap: 40px; padding: 74px 0 40px; }
+/* Grid/flex children default to min-width:auto and refuse to shrink below their
+   content — which lets the terminal's long non-wrapping line widen the whole
+   page. min-width:0 lets the column shrink so the terminal scrolls internally. */
+.landing .hero-copy { min-width: 0; }
+.landing .terminal { width: 100%; }
 .landing h1 {
   font-family: var(--display); font-weight: 800;
   font-size: clamp(2.9rem, 5.6vw, 4.35rem); line-height: 1.02;
@@ -68,8 +101,10 @@
 .landing .dot.r { background: #ff5f57; }
 .landing .dot.y { background: #febc2e; }
 .landing .dot.g { background: #28c840; }
-.landing .term-body { padding: 18px 20px 20px; font-family: var(--mono); font-size: 15.5px; line-height: 1.85; color: var(--term-text); overflow-x: auto; }
-.landing .term-body .l { white-space: pre; }
+.landing .term-body { padding: 18px 20px 20px; font-family: var(--mono); font-size: 15.5px; line-height: 1.85; color: var(--term-text); }
+/* Wrap long commands (the install line overflows the hero column) rather than
+   showing a horizontal scrollbar. overflow-wrap:anywhere breaks the long path. */
+.landing .term-body .l { white-space: pre-wrap; overflow-wrap: anywhere; }
 .landing .term-body .p { color: var(--term-prompt); font-weight: 500; user-select: none; }
 
 .landing .hero-art { position: relative; display: flex; justify-content: center; align-items: center; }
@@ -165,6 +200,9 @@
   .landing .hero-art img { max-width: 320px; }
   .landing .lede { max-width: none; }
   .landing .nav-links { display: none; }
+  .landing .nav-menu { display: inline-flex; }
+  .landing .nav .nav-cta { margin-left: auto; }
+  .landing .nav { gap: 14px; }
   .landing .cards { grid-template-columns: 1fr; }
   .landing .admin-right .link span { display: none; }
 }
@@ -207,8 +245,14 @@
 .landing .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 @media (max-width: 760px) {
-  .landing .chain-diagram { flex-direction: column; align-items: stretch; gap: 18px; }
-  .landing .chain-tracks { border-left: none; padding-left: 0; }
-  .landing .track { flex-wrap: wrap; }
-  .landing .node-source { align-self: flex-start; }
+  /* Stack the generation chain vertically so it reads top-to-bottom on a
+     narrow screen instead of wrapping horizontally. Arrows rotate to point
+     down; each track becomes a centered column of nodes. */
+  .landing .chain-diagram { flex-direction: column; align-items: center; gap: 26px; padding: 8px 22px 4px; }
+  .landing .chain-tracks { border-left: none; padding-left: 0; gap: 30px; align-items: center; width: 100%; }
+  .landing .track { flex-direction: column; align-items: center; gap: 10px; width: 100%; }
+  .landing .track-label { width: auto; text-align: center; margin-bottom: 2px; }
+  .landing .chain .arrow { display: inline-block; transform: rotate(90deg); }
+  .landing .node-source { align-self: center; }
+  .landing .chain-note { padding: 0 14px; }
 }

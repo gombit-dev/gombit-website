@@ -35,7 +35,20 @@ export function LandingPage() {
             <a href="#releases">Releases</a>
             <a href={REPO}>GitHub</a>
           </nav>
-          <a className="btn btn-primary" href="/guide/installation">Get Started</a>
+          <a className="btn btn-primary nav-cta" href="/guide/installation">Get Started</a>
+          <details className="nav-menu">
+            <summary className="nav-toggle" aria-label="Open menu">
+              <svg className="nav-icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /></svg>
+              <svg className="nav-icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6 18 18" /><path d="M18 6 6 18" /></svg>
+            </summary>
+            <nav className="nav-drawer">
+              <a href="/guide">Docs</a>
+              <a href="/guide/tutorial">Tutorial</a>
+              <a href="/benchmarks">Benchmarks</a>
+              <a href="#releases">Releases</a>
+              <a href={REPO}>GitHub</a>
+            </nav>
+          </details>
         </div>
       </header>
 
