@@ -46,6 +46,30 @@
 .landing .btn-ghost:hover { border-color: #cdd6e6; transform: translateY(-1px); }
 .landing .nav .btn { padding: 11px 20px; }
 
+/* Mobile menu — hidden on desktop, revealed in the ≤900px query below.
+   Built on <details> so it needs no client JS and is SSR-hydration safe. */
+.landing .nav-menu { display: none; position: relative; }
+.landing .nav-toggle {
+  list-style: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 11px;
+  background: #fff; color: var(--ink); cursor: pointer; box-shadow: var(--shadow-sm);
+}
+.landing .nav-toggle::-webkit-details-marker { display: none; }
+.landing .nav-toggle svg { width: 22px; height: 22px; }
+.landing .nav-icon-close { display: none; }
+.landing .nav-menu[open] .nav-icon-open { display: none; }
+.landing .nav-menu[open] .nav-icon-close { display: inline; }
+.landing .nav-drawer {
+  position: absolute; right: 0; top: calc(100% + 12px);
+  display: flex; flex-direction: column; min-width: 210px; padding: 8px;
+  background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-md);
+}
+.landing .nav-drawer a {
+  padding: 11px 14px; border-radius: 9px; color: var(--ink-2); font-weight: 500; font-size: 16px;
+  transition: background .12s ease, color .12s ease;
+}
+.landing .nav-drawer a:hover { background: var(--bg-soft); color: var(--accent); }
+
 /* ---------- Hero ---------- */
 .landing .hero { display: grid; grid-template-columns: 1.05fr .95fr; align-items: center; gap: 40px; padding: 74px 0 40px; }
 .landing h1 {
@@ -165,6 +189,9 @@
   .landing .hero-art img { max-width: 320px; }
   .landing .lede { max-width: none; }
   .landing .nav-links { display: none; }
+  .landing .nav-menu { display: inline-flex; }
+  .landing .nav .nav-cta { margin-left: auto; }
+  .landing .nav { gap: 14px; }
   .landing .cards { grid-template-columns: 1fr; }
   .landing .admin-right .link span { display: none; }
 }
