@@ -17,6 +17,10 @@
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Safety net: no section should ever push the page wider than the viewport.
+     `clip` (unlike `hidden`) doesn't establish a scroll container, so the
+     sticky header stays anchored to the viewport. */
+  overflow-x: clip;
 }
 
 .landing .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
@@ -72,6 +76,11 @@
 
 /* ---------- Hero ---------- */
 .landing .hero { display: grid; grid-template-columns: 1.05fr .95fr; align-items: center; gap: 40px; padding: 74px 0 40px; }
+/* Grid/flex children default to min-width:auto and refuse to shrink below their
+   content — which lets the terminal's long non-wrapping line widen the whole
+   page. min-width:0 lets the column shrink so the terminal scrolls internally. */
+.landing .hero-copy { min-width: 0; }
+.landing .terminal { width: 100%; }
 .landing h1 {
   font-family: var(--display); font-weight: 800;
   font-size: clamp(2.9rem, 5.6vw, 4.35rem); line-height: 1.02;
