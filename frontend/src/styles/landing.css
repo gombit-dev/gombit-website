@@ -243,8 +243,8 @@
 .landing .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 @media (max-width: 760px) {
-  .landing .chain-diagram { flex-direction: column; align-items: stretch; gap: 18px; }
-  .landing .chain-tracks { border-left: none; padding-left: 0; }
-  .landing .track { flex-wrap: wrap; }
-  .landing .node-source { align-self: flex-start; }
+  .landing .chain-diagram { flex-direction: column; align-items: stretch; gap: 24px; padding: 8px 6px 4px; }
+  .landing .chain-tracks { border-left: none; padding-left: 0; gap: 22px; }
+  .landing .track { flex-wrap: wrap; row-gap: 10px; }
+  .landing .node-source { align-self: flex-start; margin-bottom: 4px; }
 }
