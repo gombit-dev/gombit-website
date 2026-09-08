@@ -1,0 +1,36 @@
+version: 2
+updates:
+  # Go module dependencies. Grouped so a week's updates arrive as one PR; a bump
+  # that raises the required Go toolchain past go.mod's `go` directive should be
+  # pinned deliberately, not chased blindly.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+
+  # Frontend dependencies (frontend/, pnpm — handled by the npm ecosystem).
+  - package-ecosystem: npm
+    directory: "/frontend"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
+
+  # GitHub Actions used by the workflows.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
