@@ -64,3 +64,23 @@ jobs:
 
       - name: Deploy the built image
         run: flyctl deploy --image "$IMAGE"
+# Informational, not a gate (mirrors gombit-docs' CI). govulncheck's findings
+  # here are overwhelmingly pinned-stdlib advisories a toolchain bump clears,
+  # not application changes; hard-gating would keep CI red through no fault of a
+  # push. This is the repo's CI workflow, so the scan lives alongside test.
+  govulncheck:
+    name: govulncheck (informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Dependency vulnerabilities (govulncheck)
+        continue-on-error: true
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
