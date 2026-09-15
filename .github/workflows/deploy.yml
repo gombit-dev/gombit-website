@@ -1,7 +1,9 @@
 name: Deploy
 
-# Test, build the Docker image in CI, and deploy it to Fly.io on every push to
-# main.
+# Build the Docker image in CI and deploy it to Fly.io on every push to main.
+# Comprehensive checks (lint, frontend, contract drift, embed, security) live in
+# ci.yml, which also runs on push to main. The `test` job below is a fast
+# pre-deploy smoke gate so a red build never ships.
 on:
   push:
     branches: [main]
@@ -9,7 +11,7 @@ on:
 
 jobs:
   test:
-    name: Test
+    name: Test (deploy gate)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -64,23 +66,3 @@ jobs:
 
       - name: Deploy the built image
         run: flyctl deploy --image "$IMAGE"
-# Informational, not a gate (mirrors gombit-docs' CI). govulncheck's findings
-  # here are overwhelmingly pinned-stdlib advisories a toolchain bump clears,
-  # not application changes; hard-gating would keep CI red through no fault of a
-  # push. This is the repo's CI workflow, so the scan lives alongside test.
-  govulncheck:
-    name: govulncheck (informational)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-      - name: Dependency vulnerabilities (govulncheck)
-        continue-on-error: true
-        env:
-          GOTOOLCHAIN: auto
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          "$(go env GOPATH)/bin/govulncheck" ./...

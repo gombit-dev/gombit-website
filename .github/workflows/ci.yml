@@ -1,0 +1,170 @@
+name: CI
+
+# Robust pre-merge CI: runs on every pull request and on push to main. Mirrors
+# gombit-docs' CI, adapted for this repo (SQLite is cgo, not PostgreSQL; the
+# frontend has no test script). Deployment lives in deploy.yml and is gated by
+# its own build+test smoke job.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# GOTOOLCHAIN=local: use exactly the toolchain actions/setup-go installed from
+# go.mod, never fetch a different one mid-build. GOPROXY with `|` falls back to
+# `direct` on any proxy/network failure, not only 404/410. GOMBIT_VERSION pins
+# the CLI that regenerates the contract client (see the drift gate below);
+# v0.1.12 reproduces the committed openapi.json / TypeScript client byte-exact.
+env:
+  GOTOOLCHAIN: local
+  GOPROXY: https://proxy.golang.org|direct
+  GOMBIT_VERSION: v0.1.12
+
+jobs:
+  lint:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l $(git ls-files '*.go'))"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-clean:"; echo "$unformatted"
+            gofmt -d $(git ls-files '*.go'); exit 1
+          fi
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.11.3
+
+  frontend:
+    name: Frontend typecheck & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      # `pnpm build` = tsc --noEmit + the client SPA build + the SSR build +
+      # the prerender pass — the same production frontend the embed produces.
+      - run: pnpm build
+
+  integration:
+    name: Build, test, contract drift, embed
+    runs-on: ubuntu-latest
+    env:
+      # SQLite is cgo; ubuntu-latest ships gcc, we just have to enable it.
+      CGO_ENABLED: "1"
+      # GOMBIT_APP_NAME is the OpenAPI info.title. The server auto-loads .env
+      # from its working dir locally (where it is set), but .env is gitignored
+      # so CI has none — without this the title defaults to "Gombit" and the
+      # committed spec (title "gombit-website") reads as drift. Keep it canonical.
+      GOMBIT_APP_NAME: gombit-website
+      GOMBIT_ENV: development
+      GOMBIT_DATABASE_DRIVER: sqlite
+      # A throwaway DB file, not the committed gombit.db — CI carries no state.
+      GOMBIT_DATABASE_DSN: file:ci.db?cache=shared&_fk=1
+      GOMBIT_AUTH_MODE: cookie
+      GOMBIT_JWT_SECRET: ci-only-secret-0123456789abcdef0123456789abcdef
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install gombit CLI
+        run: go install github.com/gombit-dev/gombit/cmd/gombit@${GOMBIT_VERSION}
+
+      - name: Build
+        run: go build ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+
+      - name: Run server for contract checks
+        run: |
+          go build -o bin/server ./cmd/server
+          ./bin/server > server.log 2>&1 &
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/readyz >/dev/null 2>&1 && { echo "ready"; exit 0; }
+            sleep 1
+          done
+          echo "server did not become ready"; cat server.log; exit 1
+
+      # Contract-drift gate. `gombit client check` fetches the live
+      # /openapi.json, compares it to the committed openapi.json *semantically*
+      # (whitespace/key-order differences across environments are not drift),
+      # and regenerates the TypeScript client the SPA consumes, comparing it to
+      # the committed frontend/src/api/generated *byte-for-byte*. The byte-exact
+      # gate is on the consumer-facing client; the spec is the semantic source.
+      - name: Generated TypeScript client drift
+        run: gombit client check --url http://127.0.0.1:8080/openapi.json
+
+      - name: Stop server
+        if: always()
+        run: kill "$SERVER_PID" 2>/dev/null || true
+
+      # The single-binary production artifact: pnpm build -> collectstatic ->
+      # go build. Proves what deploy.yml's Dockerfile ships actually assembles.
+      - name: Embedded production build
+        run: gombit build --embed
+
+  security:
+    name: Security scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Secret scan (gitleaks)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.21.2 \
+            detect --source=/repo --redact --verbose --exit-code=1
+
+      # Informational, not a gate. The vulnerabilities govulncheck surfaces here
+      # are overwhelmingly in the pinned Go standard library (fixed by a
+      # toolchain patch bump, not by any application change); hard-gating on them
+      # would keep CI red through no fault of a PR and block all feature work
+      # until the toolchain moves. Secret scanning above IS gated. Bumping the Go
+      # toolchain to clear stdlib advisories is tracked separately.
+      - name: Dependency vulnerabilities (govulncheck, informational)
+        continue-on-error: true
+        env:
+          GOTOOLCHAIN: auto
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
