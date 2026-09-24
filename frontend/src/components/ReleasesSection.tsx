@@ -30,21 +30,24 @@ function toBullets(tldr: string): string[] {
 
 export function ReleasesSection() {
   const client = useApiClient();
-  const [releases, setReleases] = useState<ReleaseRow[]>([]);
+  const [latest, setLatest] = useState<ReleaseRow | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        // Newest first, server-side: published_at is the model's sortable field.
+        // Only the latest release is shown; older ones live on GitHub ("All
+        // releases"). published_at is the model's sortable field.
         const listed = await unwrap(
-          await client.GET("/api/v1/releases", { params: { query: { ordering: "-published_at" } } }),
+          await client.GET("/api/v1/releases", {
+            params: { query: { ordering: "-published_at", per_page: 1 } },
+          }),
         );
         if (cancelled) {
           return;
         }
-        setReleases(Array.isArray(listed.data) ? listed.data : []);
+        setLatest(Array.isArray(listed.data) ? (listed.data[0] ?? null) : null);
         setState("ready");
       } catch {
         if (!cancelled) {
@@ -57,13 +60,11 @@ export function ReleasesSection() {
     };
   }, [client]);
 
-  const [featured, ...rest] = releases;
-
   return (
     <section className="wrap releases" id="releases">
       <div className="rel-head">
         <h2>What&apos;s new</h2>
-        <p>Every GitHub release, summarized automatically. Here&apos;s the gist:</p>
+        <p>The latest GitHub release, summarized automatically. Here&apos;s the gist:</p>
       </div>
 
       {state === "loading" && <p className="rel-note">Loading releases…</p>}
@@ -73,26 +74,11 @@ export function ReleasesSection() {
           <a href="https://github.com/gombit-dev/gombit/releases">GitHub</a>.
         </p>
       )}
-      {state === "ready" && releases.length === 0 && (
+      {state === "ready" && !latest && (
         <p className="rel-note">No releases published yet.</p>
       )}
 
-      {featured && <FeaturedRelease release={featured} />}
-
-      {rest.length > 0 && (
-        <div className="rel-list">
-          {rest.map((r) => (
-            <a className="rel-row" key={r.tag} href={r.url || "#"}>
-              <span className="tag-pill">{r.tag}</span>
-              <span className="rr-title">{r.name}</span>
-              <span className="rr-meta">
-                <span className="rr-date">{formatDate(String(r.published_at ?? ""))}</span>
-                <span className="rr-arrow"><Arrow /></span>
-              </span>
-            </a>
-          ))}
-        </div>
-      )}
+      {latest && <FeaturedRelease release={latest} />}
     </section>
   );
 }
