@@ -143,23 +143,6 @@ export function LandingPage() {
 
         <ReleasesSection />
 
-        <div className="admin-peek" aria-label="Preview of the Gombit admin">
-          <div className="admin-bar">
-            <div className="admin-title">Gombit <span>Admin</span></div>
-            <div className="admin-search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></svg>
-              Search…
-            </div>
-            <div className="admin-right">
-              <span className="link">View site
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4 11 13" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" /></svg>
-              </span>
-              <span className="who">admin
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-              </span>
-            </div>
-          </div>
-        </div>
         <section className="wrap compare">
           <h2>Gombit, or assemble it yourself.</h2>
           <p className="compare-lede">Every row below is a decision you don&apos;t have to make — and then wire together.</p>
