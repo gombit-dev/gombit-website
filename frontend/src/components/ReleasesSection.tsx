@@ -37,14 +37,14 @@ export function ReleasesSection() {
     let cancelled = false;
     void (async () => {
       try {
-        const listed = await unwrap(await client.GET("/api/v1/releases"));
+        // Newest first, server-side: published_at is the model's sortable field.
+        const listed = await unwrap(
+          await client.GET("/api/v1/releases", { params: { query: { ordering: "-published_at" } } }),
+        );
         if (cancelled) {
           return;
         }
-        const rows = (Array.isArray(listed.data) ? listed.data : []).slice().sort((a, b) =>
-          String(b.published_at ?? "").localeCompare(String(a.published_at ?? "")),
-        );
-        setReleases(rows);
+        setReleases(Array.isArray(listed.data) ? listed.data : []);
         setState("ready");
       } catch {
         if (!cancelled) {

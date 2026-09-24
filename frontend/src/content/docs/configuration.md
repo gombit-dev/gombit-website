@@ -14,7 +14,7 @@ shape with environment-derived `/docs` and cache namespace. Mutating
 - app name: `Gombit`
 - environment: `development`
 - HTTP address: `:8080`
-- HTTP request timeout: `60s`
+- HTTP request timeout: `0` (per-handler deadline disabled by default; opt-in via `GOMBIT_HTTP_REQUEST_TIMEOUT`)
 - API prefix: `/api/v1`
 - interactive API docs: enabled (`/docs`)
 - database driver: `sqlite`
@@ -42,10 +42,11 @@ recognizes:
 | `GOMBIT_ENV` | `Config.Environment` | `development` |
 | `GOMBIT_HTTP_ADDR` | `Config.HTTP.Addr` | `:8080` |
 | `GOMBIT_HTTP_TRUSTED_PROXIES` | `Config.HTTP.TrustedProxies` | unset |
-| `GOMBIT_HTTP_REQUEST_TIMEOUT` | `Config.HTTP.RequestTimeout` | `60s` |
+| `GOMBIT_HTTP_REQUEST_TIMEOUT` | `Config.HTTP.RequestTimeout` | `0` (disabled; opt-in) |
 | `GOMBIT_API_PREFIX` | `Config.API.Prefix` | `/api/v1` |
 | `GOMBIT_DOCS_ENABLED` | `Config.API.DocsEnabled` | `true` (off in production when unset) |
 | `GOMBIT_DATABASE_DRIVER` | `Config.Database.Driver` | `sqlite` |
+| `GOMBIT_DATABASE_REQUIRED` | `Config.Database.Required` | `true` |
 | `GOMBIT_DATABASE_DSN` | `Config.Database.DSN` | `file:gombit.db?cache=shared&_fk=1` |
 | `GOMBIT_DATABASE_MAX_OPEN_CONNS` | `Config.Database.MaxOpenConns` | `0` |
 | `GOMBIT_DATABASE_MAX_IDLE_CONNS` | `Config.Database.MaxIdleConns` | `0` |
@@ -69,6 +70,7 @@ recognizes:
 | `GOMBIT_AUTH_MODE` | `Config.Auth.Mode` | `jwt` |
 | `GOMBIT_COOKIE_SECURE` | `Config.Auth.CookieSecure` | `true` |
 | `GOMBIT_COOKIE_SAMESITE` | `Config.Auth.CookieSameSite` | `lax` |
+| `GOMBIT_SECURITY_SANITIZE_INPUT` | `Config.Security.SanitizeInput` | `false` (opt-in) |
 
 `GOMBIT_API_PREFIX` is a live setting (D8). Go routes, Huma, and the admin
 SPA honor it. The generated application SPA honors it when the prefix is
@@ -90,14 +92,27 @@ to Gin's trusted-proxy configuration. When unset, forwarded-client IP headers
 are ignored. Production config rejects values that trust all proxies, such as
 `0.0.0.0/0`.
 `GOMBIT_HTTP_REQUEST_TIMEOUT` uses Go duration syntax such as `30s` or `2m`.
-The value sets the cooperative per-request context deadline and the
-`http.Server` read/write/idle timeouts; `0` disables all four.
+It is opt-in (issue #270 / PERF-12): the default `0` imposes no cooperative
+per-handler context deadline. The deadline is applied inside the
+`request_context` middleware, which always runs; a `0` value only skips the
+deadline setup (a no-op — no timer, nothing added on the request path), so
+there is no separate timeout layer to install or omit. When set
+to a positive value it installs that deadline and also drives the `http.Server`
+read/write/idle timeouts. Those connection-level timeouts are a safety net that
+stays on regardless — with the per-handler deadline disabled they fall back to
+`60s` rather than becoming unbounded. Scaffolded apps set `60s` explicitly, so
+`gombit new` projects keep a per-handler deadline out of the box.
 `GOMBIT_DATABASE_CONN_MAX_LIFETIME` uses Go duration syntax such as `30m` or
 `1h`.
 Redis timeout values use the same Go duration syntax.
 `GOMBIT_DOCS_ENABLED` accepts boolean values (`true`/`false`, `1`/`0`,
 `yes`/`no`, `on`/`off`). When unset, docs stay on in `development` and `test`
 and turn off in `production`. `/openapi.json` is always served.
+`GOMBIT_SECURITY_SANITIZE_INPUT` accepts boolean values and defaults to
+`false`: the framework does not rewrite request input (issue #271 / PERF-13).
+XSS is handled on output; set it to `true` to install the legacy ingress HTML
+sanitizer, or call `framework.SanitizeHTML` per field. See
+[security.md](https://github.com/gombit-dev/gombit/blob/main/docs/security.md#input-sanitization-opt-in).
 `GOMBIT_LOG_LEVEL` accepts `debug`, `info`, `warn`, and `error`.
 `GOMBIT_LOG_SINK` accepts `stderr`, `stdout`, and `mongo`; Mongo logging is an
 external module hook, not a runtime dependency.

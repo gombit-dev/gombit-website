@@ -104,5 +104,14 @@
         "title": "Admin"
       }
     ]
+  },
+  {
+    "title": "Upgrading",
+    "pages": [
+      {
+        "slug": "model-first-resources",
+        "title": "Model-first resources (v0.2)"
+      }
+    ]
   }
 ]

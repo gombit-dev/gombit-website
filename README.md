@@ -29,7 +29,7 @@ single-binary deploy — are all *running the site you're reading it on*.
 
 ## Develop
 
-Prerequisites: Go 1.25+, Node 22+, a C toolchain (SQLite is cgo), and
+Prerequisites: Go 1.26+, Node 22+, a C toolchain (SQLite is cgo), and
 [Atlas](https://atlasgo.io/) for migrations.
 
 ```sh

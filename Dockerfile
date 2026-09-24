@@ -10,10 +10,11 @@
 # because the SQLite file lives on the Fly volume mounted on this machine.
 
 # ---- Stage 1: build ---------------------------------------------------------
-FROM golang:1.25-bookworm AS build
+FROM golang:1.26-bookworm AS build
 
-# Pin these to a released tag once gombit cuts one; @latest is fine pre-1.0.
-ARG GOMBIT_VERSION=latest
+# Pin the CLI to the same gombit release as go.mod: the entrypoint's migrate
+# step and `gombit build --embed` must match the framework the server links.
+ARG GOMBIT_VERSION=v0.2.1
 
 # Node 22 (Vite build, pnpm via corepack) + a C toolchain for cgo SQLite.
 RUN apt-get update \

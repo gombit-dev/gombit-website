@@ -507,9 +507,13 @@ export interface components {
             /** @description Body */
             body: string;
             /**
+             * Format: date-time
+             * @description CreatedAt
+             */
+            created_at: string;
+            /**
              * Format: int64
-             * @description Release identifier
-             * @example 1
+             * @description ID
              */
             id: number;
             /** @description Name */
@@ -522,6 +526,11 @@ export interface components {
             tldr: string;
             /** @description TldrStatus */
             tldr_status: string;
+            /**
+             * Format: date-time
+             * @description UpdatedAt
+             */
+            updated_at: string;
             /** @description Url */
             url: string;
         };
@@ -795,7 +804,9 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
+            cookie?: {
+                gombit_csrf?: components["schemas"]["Cookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -1086,6 +1097,12 @@ export interface operations {
                 page?: number;
                 /** @description Page size */
                 per_page?: number;
+                /** @description Search term matched across searchable fields */
+                search?: string;
+                /** @description Field to order by; prefix with - for DESC (allowed: published_at) */
+                ordering?: string;
+                /** @description Filter by TldrStatus (exact match) */
+                tldr_status?: string;
             };
             header?: never;
             path?: never;
