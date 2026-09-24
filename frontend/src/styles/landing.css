@@ -145,15 +145,6 @@
 .landing .release-foot a svg { width: 16px; height: 16px; }
 .landing .release-foot .all { color: var(--muted); font-weight: 500; }
 .landing .release-foot .all:hover, .landing .release-foot a:hover { color: var(--accent-hover); }
-.landing .rel-list { max-width: 760px; margin: 12px auto 0; padding: 4px 8px; }
-.landing .rel-row { display: flex; align-items: center; gap: 15px; padding: 15px 8px; border-top: 1px solid var(--border-2); transition: background .12s ease; border-radius: 8px; }
-.landing .rel-row:hover { background: var(--accent-wash-2); }
-.landing .rel-row .tag-pill { font-size: .82rem; padding: 4px 11px; }
-.landing .rel-row .rr-title { font-weight: 600; color: var(--ink); }
-.landing .rel-row .rr-meta { margin-left: auto; display: flex; align-items: center; gap: 13px; }
-.landing .rel-row .rr-date { color: var(--muted); font-size: .92rem; }
-.landing .rel-row .rr-arrow { width: 16px; height: 16px; color: #b9c2d4; }
-.landing .rel-row:hover .rr-arrow { color: var(--accent); }
 
 /* ---------- Admin peek ---------- */
 .landing .admin-peek {
