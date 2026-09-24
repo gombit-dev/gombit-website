@@ -25,8 +25,11 @@ go run ./cmd/gombit --help
 | `gombit build --embed` | Optional single-binary (collectstatic + `go:embed`) | M5-5 |
 | `gombit make resource` | Generate a feature-package resource (AST-safe) | M4-3 |
 | `gombit make command` | Scaffold a Cobra management command (AST-safe) | M4-7 |
+| `gombit generate` | Regenerate model-first resource files (`*.gen.go`); `--check` gates drift | RESGEN-1 |
 | `gombit db …` | Atlas-backed migrations | M2, migrated onto Cobra in M4-1 |
+| `gombit db verify` | Classify + verify migration safety manifests | HOST-3 |
 | `gombit openapi generate` | Write the live OpenAPI 3.1 document | M3-3 |
+| `gombit contract app` | Emit the machine-readable application contract | HOST-1 |
 | `gombit client generate` / `check` | TypeScript client + drift | M3-4, M3-5 |
 | `gombit routes` | Print HTTP routes | M4-4 |
 | `gombit doctor` | Environment and config checks | M4-4 |
@@ -42,8 +45,10 @@ generated backend (`go build` with a local `replace` in a temp copy — never
 committed), typechecks the frontend with `npx tsc --noEmit` when Node is
 on `PATH` (`t.Skip` otherwise), and checks that a second run is idempotent
 (`gombit new --force`, `make resource` without `--force`, `make command`
-without `--force`, `client generate` without `--force`). Atlas is not
-invoked, so migration filenames stay out of the trees.
+without `--force`, `client generate` without `--force`). `make resource`
+runs with `--skip-migrations`, so Atlas is not invoked and timestamped
+migration filenames stay out of the trees; the make-resource tree does include
+the deterministic `database/migrations/models.json` registry.
 
 ```sh
 go test ./goldentest
@@ -295,18 +300,29 @@ gombit make resource Widget --force
 `make` is a Cobra parent (`AddCommand`); `resource` is the subcommand. Root
 help lists `make`.
 
-This writes a feature-package under `internal/<snake>/`:
+`make resource` is model-first (ADR-016): it scaffolds the human-owned model,
+then runs [`gombit generate`](#gombit-generate) to derive the generator-owned
+plumbing. It writes a feature-package under `internal/<snake>/`:
 
-| File | When |
-| --- | --- |
-| `<snake>.go` | GORM model (`gorm.Model` + fields) |
-| `handler.go` | Thin Huma list/get/create over GORM (D10 envelope; list honors `page`/`per_page`; get/create map missing rows to `not_found` and unique violations to `conflict`) |
-| `routes.go` | `Register(app *framework.App)` |
-| `service.go` | Only with `--service` (pass-through) |
-| `repo.go` | Only with `--repo` (pass-through) |
+| File | Owner | When |
+| --- | --- | --- |
+| `<snake>.go` | **you** | GORM model (`gorm.Model` + fields), plus the `gombit:"..."` field policy translated from the CLI modifiers. Scaffolded once; edit it freely — re-running `make resource` never overwrites it (use `--force` to re-scaffold). No DO-NOT-EDIT banner. |
+| `.gombit-resource` | generator | Marker that makes the package a model-first resource `gombit generate` regenerates. |
+| `dto.gen.go` | generator | Request/response DTOs + model↔DTO mappers. **DO NOT EDIT** — regenerated from the model. |
+| `handler.gen.go` | generator | Huma list/get/create over GORM + `Register(app *framework.App)` (D10 envelope; list honors `page`/`per_page` and the declared filter/sort/search/aggregate surface; `not_found`/`conflict` mapping). **DO NOT EDIT.** |
+| `hooks.go` | **you** | A default no-op `BeforeCreate` hook. Set server-managed columns (tenant, owner, …) here. Seeded once, never overwritten. |
+| `service.go` | you | Only with `--service` (pass-through) |
+| `repo.go` | you | Only with `--repo` (pass-through) |
 
-Default API prefix is `/api/v1`. The handler stays thin over GORM; `--service`
-and `--repo` are C6 opt-in and are not used by the generated handler.
+Customization happens in the model, its field policy, and `hooks.go` — **never
+by editing the generated `*.gen.go`** (regeneration overwrites them). See the
+[migration guide](/guide/model-first-resources) if you have resources
+from the old human-owned-`handler.go` layout.
+
+Default API prefix is `/api/v1`. Enum fields (`status:enum(a,b,c)`) are not yet
+supported by the model-first generator (enum values are not a GORM schema fact)
+and are rejected; use a string field for now. `--service` and `--repo` are C6
+opt-in and are not used by the generated handler.
 
 Route registration is appended in `cmd/server/main.go` via `go/ast` +
 `go/parser` + `go/format` (never regex), next to `product.Register(app)`.
@@ -342,15 +358,15 @@ name:type[:required][,unique][,index]
 ```
 
 Supported types: `string`, `text`, `int`, `int64`, `bool`, `uint`, `decimal`,
-`time`, `enum`. Unknown types error with the supported list. `nullable` is
-accepted as the opposite of `required`.
+`time`. Unknown types error with the supported list. `nullable` is
+accepted as the opposite of `required`. Enum fields are not supported by the
+model-first generator yet (see above) and are rejected — use a `string`.
 
 | Type | Go type | Column / contract |
 | --- | --- | --- |
 | `decimal` | `types.Decimal` (wraps `shopspring/decimal`) | `decimal(19,4)`; JSON string, exact — no float rounding |
 | `decimal(p,s)` | `types.Decimal` | `decimal(p,s)`, e.g. `decimal(10,2)` |
 | `time` | `time.Time` | RFC3339 date-time in JSON |
-| `enum(a,b,c)` | `string` | sized varchar; validated against the listed values (Huma `enum` tag) |
 | `belongs_to:Target` | FK `TargetID uint` + `Target target.Target` | DTO exposes `target_id`; admin renders a picker |
 | `has_many:Target` | `[]target.Target` | model-only, read via the admin; the child must carry the parent FK |
 | `many_to_many:Target` | `[]target.Target` (`many2many:` join) | model-only, edited via the admin |
@@ -361,9 +377,7 @@ adding one of these types does not reproduce the model/DTO drift of
 [#218](https://github.com/gombit-dev/gombit/issues/218). A `time` or `decimal`
 field **without** `:required` becomes a pointer (`*time.Time` / `*types.Decimal`)
 on the model and DTO, because those value types cannot be submitted empty — the
-generated forms send `null` for a blank optional value. Enum values are
-case-sensitive and validated at the API layer; no database CHECK constraint is
-added (portable across SQLite/PostgreSQL/MySQL).
+generated forms send `null` for a blank optional value.
 
 **Relations** use `name:kind:Target`, where `Target` is a model in
 `internal/<target>/` (imported as `target.Target`). `belongs_to` generates the
@@ -388,7 +402,7 @@ Example:
 gombit make resource Rental \
   price:decimal:required \
   starts_at:time \
-  status:enum(requested,confirmed,active,returned,cancelled) \
+  status:string:filterable \
   engine:belongs_to:Engine \
   warehouses:many_to_many:Warehouse
 ```
@@ -405,14 +419,31 @@ that file are not preserved.
 ### Migrations
 
 Gombit does not invent a migration DSL. The generated GORM model is
-Atlas-loader ready. If the `atlas` binary is on `PATH`, `make resource`
-attempts `migrations.MakeMigrations` with every `&pkg.Type{}` already
-registered in `internal/platform` AutoMigrate plus the new model, merged with
-`database/migrations/models.json` (see
-[migrations.md](/guide/migrations#generate-a-migration)) — so a model that isn't
-in the `AutoMigrate` list for some reason but is still tracked in the
-registry isn't dropped either. If Atlas is missing from `PATH`, SQL is
-skipped and the command prints:
+Atlas-loader ready. `make resource` runs `migrations.MakeMigrations` with every
+`&pkg.Type{}` already registered in `internal/platform` AutoMigrate plus the new
+model, merged with `database/migrations/models.json` (see
+[migrations.md](/guide/migrations#generate-a-migration)) — so a model that isn't in
+the `AutoMigrate` list for some reason but is still tracked in the registry
+isn't dropped either.
+
+Because that step needs the `atlas` binary, and whether Atlas happens to be on
+`PATH` must not change the committed tree, `make resource` **fails before
+writing anything** when Atlas is missing:
+
+```text
+Atlas is required to generate database migrations ("atlas" not found on PATH).
+
+Install Atlas and retry, or run:
+
+    gombit make resource Book title:string:required --skip-migrations
+
+to create the resource without generating migration SQL
+```
+
+Pass `--skip-migrations` to scaffold the resource and persist the
+loader/registry state (`models.json`) now, deferring only the SQL diff — a
+registry-ahead-of-SQL state you opt into explicitly. Generate the SQL later,
+once Atlas is installed, with `gombit db makemigrations`:
 
 ```sh
 gombit db makemigrations create_books \
@@ -421,6 +452,35 @@ gombit db makemigrations create_books \
 ```
 
 See [migrations.md](/guide/migrations).
+
+## `gombit generate`
+
+Regenerate the generator-owned `*.gen.go` (DTOs, mappers, CRUD handler) for the
+application's model-first resources from their current models plus `gombit`
+field policy. Run it after editing a model — regeneration is how the DTOs,
+mappers, and handler stay in sync with the model (ADR-016). `make resource`
+runs it for you after scaffolding a new resource.
+
+```sh
+gombit generate            # rewrite the *.gen.go from the models
+gombit generate --check    # verify they are current; exit non-zero on drift (CI gate)
+gombit generate --dry-run  # print what would be written without writing
+```
+
+Run it from an application directory. It reads the app's *real compiled* models
+via a throwaway program run inside the app module (like `gombit db
+makemigrations`), so a model change is reflected exactly.
+
+- It discovers resources by the `.gombit-resource` marker `make resource` writes
+  — an `AutoMigrate`d model without that marker (a join table, an audit-log
+  model) is not a resource and is left alone.
+- The human-owned `hooks.go` is seeded when absent and then never overwritten or
+  drift-checked; only the `*.gen.go` are compared by `--check`.
+- It fails closed on a package still using the legacy human-owned `handler.go`
+  layout — [migrate it](/guide/model-first-resources) first.
+
+`--check` is the drift gate: commit the `*.gen.go`, and a stale copy (model
+changed but not regenerated) fails the check. Regenerate with `gombit generate`.
 
 ## `gombit make command`
 
@@ -484,9 +544,24 @@ gombit db rollback
 gombit db status
 gombit db seed
 gombit db reset [--force]
+gombit db verify [--write] [--json] [--strict]
+gombit db hash
 ```
 
-See [migrations.md](/guide/migrations) for Atlas behavior.
+`gombit db hash` wraps `atlas migrate hash` to recompute the directory checksum
+(`atlas.sum`) after a migration is hand-edited (e.g. to backfill a renamed
+column), so recovery from a checksum mismatch never needs the raw Atlas CLI.
+`atlas migrate hash` is part of Atlas Community Edition ([ADR-012](https://github.com/gombit-dev/gombit/blob/main/docs/adr/012-migrations-atlas-gorm-provider.md)).
+
+> Surfacing destructive/non-appliable changes (`atlas migrate lint`) is **not**
+> wrapped here: ADR-012 places `atlas migrate lint` outside the v0.1 Community
+> Edition dependency surface. Migration-safety analysis and the field-rename
+> affordance are tracked in [#299](https://github.com/gombit-dev/gombit/issues/299).
+
+See [migrations.md](/guide/migrations) for Atlas behavior and
+[migration-safety.md](https://github.com/gombit-dev/gombit/blob/main/docs/migration-safety.md) for `gombit db verify` — the
+migration safety manifest and verifier a deployment host uses to gate
+destructive migrations (HOST-3).
 
 ## `gombit routes`
 
@@ -600,7 +675,7 @@ gombit --version
 gombit:   v0.1.0
 commit:   9abb3c6ecc8c1bf93419aa43c4d4f1ae3de97a2b
 built:    2026-08-18T19:33:15Z
-go:       go1.25.7
+go:       go1.26.0
 platform: linux/amd64
 ```
 
@@ -633,3 +708,12 @@ See [installation.md](/guide/installation) and [releasing.md](https://github.com
 ## `gombit openapi` and `gombit client`
 
 See [openapi.md](/guide/openapi) and [client.md](/guide/typescript-client).
+
+## `gombit contract app`
+
+Emits the machine-readable **application contract** (HOST-1) — how a deployment
+host builds, health-checks, and migrates the app, projected from declared
+config and `go.mod`, never inferred from the source tree. Writes JSON to stdout
+or `--out`; `--dir` selects the project directory. Fails loudly when the
+framework version is missing or replaced by a local checkout. See
+[app-contract.md](https://github.com/gombit-dev/gombit/blob/main/docs/app-contract.md).

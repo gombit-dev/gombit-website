@@ -9,8 +9,10 @@ import (
 
 // RegisterPublic mounts the read-only release API (list + get). Releases are
 // created only by the GitHub webhook (RegisterWebhook) and edited through the
-// runtime admin, so the generated public create route (release.Register) is
-// intentionally not mounted — there is no unauthenticated write path.
+// runtime admin, so the generated Register (handler.gen.go), which also mounts
+// create-release, is intentionally not called — there is no unauthenticated
+// write path. This reuses the generated list/get methods, so the public contract
+// stays model-first; Hooks is left unset because create is never mounted.
 func RegisterPublic(app *framework.App) {
 	h := &Handler{DB: app.DB()}
 	prefix := app.Config().API.Prefix

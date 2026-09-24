@@ -67,6 +67,16 @@ const GROUPS = [
       { slug: "admin", source: "admin", title: "Admin" },
     ],
   },
+  {
+    title: "Upgrading",
+    pages: [
+      {
+        slug: "model-first-resources",
+        source: "migration-model-first-resources",
+        title: "Model-first resources (v0.2)",
+      },
+    ],
+  },
 ];
 
 const pages = GROUPS.flatMap((g) => g.pages);

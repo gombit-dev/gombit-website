@@ -17,11 +17,12 @@ permissions:
 # go.mod, never fetch a different one mid-build. GOPROXY with `|` falls back to
 # `direct` on any proxy/network failure, not only 404/410. GOMBIT_VERSION pins
 # the CLI that regenerates the contract client (see the drift gate below);
-# v0.1.12 reproduces the committed openapi.json / TypeScript client byte-exact.
+# it must match go.mod's gombit version so the committed openapi.json / TypeScript
+# client and the model-first *.gen.go reproduce byte-exact.
 env:
   GOTOOLCHAIN: local
   GOPROXY: https://proxy.golang.org|direct
-  GOMBIT_VERSION: v0.1.12
+  GOMBIT_VERSION: v0.2.1
 
 jobs:
   lint:
@@ -101,6 +102,11 @@ jobs:
 
       - name: Install gombit CLI
         run: go install github.com/gombit-dev/gombit/cmd/gombit@${GOMBIT_VERSION}
+
+      # Model-first drift gate: the generated resource files (*.gen.go) must
+      # match what `gombit generate` derives from the models.
+      - name: Generated resource drift
+        run: gombit generate --check
 
       - name: Build
         run: go build ./...

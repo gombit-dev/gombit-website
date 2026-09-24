@@ -33,7 +33,7 @@ type WebhookHandler struct {
 }
 
 // RegisterWebhook mounts the GitHub release webhook. Call it from main after
-// release.Register(app).
+// release.RegisterPublic(app).
 func RegisterWebhook(app *framework.App) {
 	h := &WebhookHandler{DB: app.DB()}
 	if s, ok := NewSummarizer(); ok {
