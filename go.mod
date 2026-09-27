@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/danielgtaylor/huma/v2 v2.39.1
-	github.com/gombit-dev/gombit v0.2.1
+	github.com/gombit-dev/gombit v0.3.1
 	gorm.io/gorm v1.31.2
 )
 
