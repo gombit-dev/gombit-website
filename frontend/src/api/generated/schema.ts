@@ -296,6 +296,10 @@ export interface components {
         CatalogAux: {
             auth?: components["schemas"]["AuthMeta"];
         };
+        Choice: {
+            label: string;
+            value: string;
+        };
         Cookie: {
             Domain: string;
             /** Format: date-time */
@@ -411,7 +415,15 @@ export interface components {
             error: components["schemas"]["ErrorBody"];
         };
         FieldMeta: {
+            choices?: components["schemas"]["Choice"][] | null;
+            default?: string;
+            format?: string;
+            /** Format: int64 */
+            max_length?: number;
+            maximum?: string;
+            minimum?: string;
             name: string;
+            pattern?: string;
             readonly: boolean;
             related?: components["schemas"]["Relation"];
             required: boolean;
