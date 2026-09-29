@@ -45,7 +45,7 @@ const GROUPS = [
       { slug: "database", source: "database", title: "Database" },
       { slug: "migrations", source: "migrations", title: "Migrations" },
       { slug: "migration-safety", source: "migration-safety", title: "Migration safety" },
-      { slug: "validation", source: "validation", title: "Validation & transactions" },
+      { slug: "validation", source: "validation", title: "Model validation & transactions" },
       { slug: "fields", source: "fields", title: "Field types" },
     ],
   },
@@ -97,13 +97,20 @@ const sourceToSlug = new Map(pages.map((p) => [`${p.source}.md`, p.slug]));
 
 // Resolve a link target, relative to the page's directory under gombit/docs/
 // ("" for docs/ itself, "testing" for docs/testing/), to a repo-root path.
+// A target written from the repo root (`docs/...`) is taken as such.
 function repoPath(target, pageDir = "") {
-  const parts = `docs/${pageDir ? `${pageDir}/` : ""}${target}`.split("/");
+  const base = target.startsWith("docs/") ? "" : `docs/${pageDir ? `${pageDir}/` : ""}`;
+  const parts = `${base}${target}`.split("/");
   const stack = [];
   for (const part of parts) {
     if (part === "" || part === ".") continue;
-    if (part === "..") stack.pop();
-    else stack.push(part);
+    if (part === "..") {
+      if (stack.length === 0) {
+        console.warn(`sync-docs: link ${target} (from docs/${pageDir}) climbs above the repo root`);
+        continue;
+      }
+      stack.pop();
+    } else stack.push(part);
   }
   return stack.join("/");
 }
