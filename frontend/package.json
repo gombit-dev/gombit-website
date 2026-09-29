@@ -9,11 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "marked": "^18.0.13",
+    "marked": "^18.0.14",
     "openapi-fetch": "0.17.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-hook-form": "^7.88.0",
+    "react-hook-form": "^7.89.0",
     "react-router": "^8.4.0"
   },
   "devDependencies": {
@@ -21,6 +21,6 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "typescript": "~7.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.1"
   }
 }
