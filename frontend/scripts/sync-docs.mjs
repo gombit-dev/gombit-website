@@ -31,9 +31,12 @@ const GROUPS = [
     pages: [
       { slug: "configuration", source: "config", title: "Configuration" },
       { slug: "lifecycle", source: "lifecycle", title: "Lifecycle" },
+      { slug: "health", source: "health", title: "Health probes" },
       { slug: "routing", source: "router", title: "Routing" },
       { slug: "logging", source: "logging", title: "Logging" },
       { slug: "caching", source: "cache", title: "Caching" },
+      { slug: "jobs", source: "jobs", title: "Background jobs" },
+      { slug: "security", source: "security", title: "Security headers" },
     ],
   },
   {
@@ -41,12 +44,16 @@ const GROUPS = [
     pages: [
       { slug: "database", source: "database", title: "Database" },
       { slug: "migrations", source: "migrations", title: "Migrations" },
+      { slug: "migration-safety", source: "migration-safety", title: "Migration safety" },
+      { slug: "validation", source: "validation", title: "Model validation & transactions" },
+      { slug: "fields", source: "fields", title: "Field types" },
     ],
   },
   {
     title: "Contract",
     pages: [
       { slug: "contract", source: "contract", title: "Contract & validation" },
+      { slug: "app-contract", source: "app-contract", title: "Application contract" },
       { slug: "openapi", source: "openapi", title: "OpenAPI" },
       { slug: "typescript-client", source: "client", title: "TypeScript client" },
     ],
@@ -68,6 +75,12 @@ const GROUPS = [
     ],
   },
   {
+    title: "Testing",
+    pages: [
+      { slug: "fault-injection", source: "testing/fault-injection", title: "Fault injection & chaos" },
+    ],
+  },
+  {
     title: "Upgrading",
     pages: [
       {
@@ -82,25 +95,33 @@ const GROUPS = [
 const pages = GROUPS.flatMap((g) => g.pages);
 const sourceToSlug = new Map(pages.map((p) => [`${p.source}.md`, p.slug]));
 
-// Resolve a link target (relative to gombit/docs/) to a repo-root path.
-function repoPath(target) {
-  const parts = `docs/${target}`.split("/");
+// Resolve a link target, relative to the page's directory under gombit/docs/
+// ("" for docs/ itself, "testing" for docs/testing/), to a repo-root path.
+// A target written from the repo root (`docs/...`) is taken as such.
+function repoPath(target, pageDir = "") {
+  const base = target.startsWith("docs/") ? "" : `docs/${pageDir ? `${pageDir}/` : ""}`;
+  const parts = `${base}${target}`.split("/");
   const stack = [];
   for (const part of parts) {
     if (part === "" || part === ".") continue;
-    if (part === "..") stack.pop();
-    else stack.push(part);
+    if (part === "..") {
+      // Refuse, rather than publish a plausible wrong path.
+      if (stack.length === 0) {
+        throw new Error(`sync-docs: link ${target} (from docs/${pageDir}) climbs above the repo root`);
+      }
+      stack.pop();
+    } else stack.push(part);
   }
   return stack.join("/");
 }
 
-function rewriteLink(target) {
+function rewriteLink(target, pageDir = "") {
   if (/^(https?:|mailto:|#)/.test(target)) return target;
   const [path, anchor = ""] = target.split("#");
   const suffix = anchor ? `#${anchor}` : "";
-  const bare = path.replace(/^\.\//, "").replace(/^docs\//, "");
-  if (sourceToSlug.has(bare)) return `/guide/${sourceToSlug.get(bare)}${suffix}`;
-  const rp = repoPath(path);
+  const rp = repoPath(path, pageDir);
+  const inDocs = rp.startsWith("docs/") ? rp.slice("docs/".length) : null;
+  if (inDocs !== null && sourceToSlug.has(inDocs)) return `/guide/${sourceToSlug.get(inDocs)}${suffix}`;
   const kind = /\.[a-z0-9]+$/i.test(rp) ? "blob" : "tree";
   return `${REPO}/${kind}/main/${rp}${suffix}`;
 }
@@ -117,7 +138,8 @@ function sync() {
 
   for (const page of pages) {
     const raw = readFileSync(resolve(docsSrc, `${page.source}.md`), "utf-8");
-    const rewritten = raw.replace(/\]\(([^)]+)\)/g, (_m, target) => `](${rewriteLink(target)})`);
+    const pageDir = page.source.includes("/") ? page.source.slice(0, page.source.lastIndexOf("/")) : "";
+    const rewritten = raw.replace(/\]\(([^)]+)\)/g, (_m, target) => `](${rewriteLink(target, pageDir)})`);
     writeFileSync(resolve(outDir, `${page.slug}.md`), rewritten);
   }
 

@@ -85,13 +85,19 @@ list columns are a declared subset. Add modifiers to the field grammar:
 
 | Modifier     | Query parameter                          | Types                                |
 | ------------ | ---------------------------------------- | ------------------------------------ |
-| `filterable` | `?<field>=<value>` (exact match)         | string, int, int64, uint, bool       |
-| `sortable`   | `?ordering=<field>` (`-<field>` for DESC) | any scalar (and belongs_to FK)       |
-| `searchable` | `?search=<term>` (case-insensitive LIKE) | string, text                         |
+| `filterable` | `?<field>=<value>` (exact match)         | string, int, int64, uint, bool, uuid, enum |
+| `sortable`   | `?ordering=<field>` (`-<field>` for DESC) | any scalar but json; also a belongs_to / one_to_one FK (see below) |
+| `searchable` | `?search=<term>` (case-insensitive LIKE) | string, text, email, slug, enum      |
 
-A `belongs_to` foreign key is **filterable by default** — no modifier needed —
+`url` and `ip` are exact values. They are sortable and not searchable, even though the admin wire is `string`.
+
+A `belongs_to` or `one_to_one` foreign key is **filterable by default** — no modifier needed —
 so a detail page can list a record's `has_many` children with
-`GET /api/v1/invoices?customer_id=<id>`.
+`GET /api/v1/invoices?customer_id=<id>`. It is not sortable by default: the
+generated policy is `gombit:"read,write,filterable"`, and the `make resource`
+relation grammar accepts only `nullable` and `on_delete=`. To allow
+`?ordering=customer_id`, add `sortable` to the foreign key's `gombit` tag on the
+model and run `gombit generate`.
 
 ```bash
 gombit make resource Article \
@@ -182,7 +188,10 @@ grouping and per-bucket aggregates come later.
 ## Request DTOs
 
 Go structs are the source of truth. Prefer Huma tags — not a separate
-`validate:"..."` layer and not hand-written OpenAPI files.
+`validate:"..."` layer and not hand-written OpenAPI files. (A model-first
+resource keeps its constraints in the model's `validate` tag, and
+`gombit generate` turns them into these Huma tags; see
+[fields.md](/guide/fields#constraints).)
 
 ```go
 type CreateWidgetBody struct {
@@ -270,15 +279,17 @@ plane) go through `database.MapLoadError` / `database.MapPersistError`:
 | Any other database error | `internal` | 500 |
 
 `database.IsUniqueViolation` is the portable detector (`gorm.ErrDuplicatedKey`
-or a driver string containing `unique` / `duplicate` — `database.Open` does
-not enable GORM `TranslateError`). Auth registration uses the same helper
+from GORM's `TranslateError`, which `database.Open` enables, or a driver string
+containing `unique` / `duplicate` as a fallback). Auth registration uses the same helper
 and still returns `conflict` for a taken email. Do not map every `First()`
 error to 404 or every `Create()` error to 500.
 
 Gin middleware may also emit D10 errors that are not §41 categories.
-`contract.PayloadTooLarge` (`error.code` `payload_too_large`, HTTP 413) is
-used by XSS JSON sanitizer buffering (see [`docs/router.md`](/guide/routing));
-cookie CSRF uses `Authorization` (403). An unsupported method on a known
+`contract.PayloadTooLarge` (`error.code` `payload_too_large`, HTTP 413) comes
+from the `request_body_limit` layer, which rejects a JSON POST/PUT/PATCH body
+over 8MiB (see [`docs/router.md`](/guide/routing)). The opt-in XSS sanitizer
+(`GOMBIT_SECURITY_SANITIZE_INPUT=true`) runs after that layer with the same
+cap, so it never produces its own 413; cookie CSRF uses `Authorization` (403). An unsupported method on a known
 route yields `contract.MethodNotAllowed` (`error.code` `method_not_allowed`,
 HTTP 405) with an `Allow` header listing the methods the path supports — the
 router distinguishes this from a genuinely unknown path (404). Do not treat
@@ -310,5 +321,7 @@ and fails on drift — see [`docs/openapi.md`](/guide/openapi) and
 
 ## What is not here yet
 
-- Pagination query DSL / filter/sort helpers (design §42)
+- Filter operators and ranges (list filters are exact-match), cursor
+  pagination, and grouped aggregates — see
+  [List query](#list-query-filter--sort--search)
 - gRPC status mapping (post-v0.1)

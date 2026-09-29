@@ -41,6 +41,9 @@ gombit db makemigrations create_products \
   --model github.com/acme/shop/internal/product.Product
 ```
 
+`--driver` defaults to the configured driver (`GOMBIT_DATABASE_DRIVER`, `sqlite`
+when unset) and `--dir` to `database/migrations`.
+
 The Atlas Community Edition CLI must be installed and available on `PATH`, or
 supplied with `--atlas-bin`:
 
@@ -111,15 +114,109 @@ to `database/migrations` by default; override that with `--dir`.
 
 `gombit db makemigrations` depends only on Atlas Community Edition features:
 the generated config points `src` at the temporary schema file and uses
-`atlas migrate diff`. It does not depend on Atlas Cloud, drift monitoring,
-external schema data sources, or migration linting.
+`atlas migrate diff`, and the [plan](#planning-a-change) uses
+`atlas schema inspect`. It does not depend on Atlas Cloud, drift monitoring,
+external schema data sources, or `atlas migrate lint`.
 
-Gombit does not add a separate `--dry-run` flag in M2-1. Atlas owns the diff
-preview behavior: if there is no model/schema change, `atlas migrate diff`
-exits without writing a new migration.
+If there is no model/schema change, `atlas migrate diff` exits without writing a
+new migration. To preview a change before anything is written, use
+[`gombit db plan`](#planning-a-change).
 
 Migration names may contain letters, numbers, underscores, and hyphens, and
 must not start with a hyphen.
+
+## Planning a change
+
+`gombit db plan` shows what the next `makemigrations` would do, without writing
+anything. It takes the same `--driver`, `--dir`, `--atlas-bin`, `--model`, and
+`--forget-model` flags:
+
+```sh
+gombit db plan --driver sqlite
+```
+
+```text
+Schema plan (sqlite, 4 change(s)):
+
+  DESTRUCTIVE  drop_column:products.title
+               Drops column products.title and the data in it.
+               products.name is added in the same plan. If it replaces title, keep the data with a rename instead:
+                 gombit db makemigrations <name> --rename products.title:name
+  UNSAFE       add_not_null:products.name
+               Adds NOT NULL column products.name with no default. The migration fails when products already has rows.
+               Give the column a database default (a gorm:"default:..." tag on the model field; Gombit's default= field modifier is applied by the API, not the database, so it does not change this), or add it as nullable, backfill it, and make it required in a later migration.
+  UNSAFE       add_not_null:products.price
+               Adds NOT NULL column products.price with no default. The migration fails when products already has rows.
+               Give the column a database default (a gorm:"default:..." tag on the model field; Gombit's default= field modifier is applied by the API, not the database, so it does not change this), or add it as nullable, backfill it, and make it required in a later migration.
+  REVIEW       table_rebuild:products
+               SQLite rebuilds products: it copies the rows into new_products, drops products, and renames the copy.
+
+3 destructive or unsafe change(s) need acknowledgement. Handle the data, then pass --allow for each:
+  --allow drop_column:products.title
+  --allow add_not_null:products.name
+  --allow add_not_null:products.price
+```
+
+It builds the schema the migration directory produces and the schema the models
+declare, both with `atlas schema inspect` on the dev database, and classifies
+Atlas's diff between them. Nothing is parsed out of migration SQL. Each change
+gets a severity:
+
+| Severity | Meaning | Codes |
+| --- | --- | --- |
+| `destructive` | Loses data | `drop_table`, `drop_column`, `narrow_type` (for example `bigint` to `integer`, `text` to `varchar(100)`) |
+| `unsafe` | Can fail on a table that already has rows | `add_not_null` (no default), `set_not_null`, `add_unique` (a new unique index, or a same-named one re-created with new columns), `add_foreign_key` (a new foreign key over existing columns, or a same-named one whose columns or target change), `add_check`, `change_type` with no safe direction, `change_primary_key`, `change_charset` (to anything but `utf8mb4`, or to `utf8mb4` when an index on the column can pass InnoDB's 3072-byte key limit), `change_collation` on a column in a unique key or in a foreign key whose other side keeps another collation, `change_generated`, any MySQL key a step builds (a new table, index, or foreign key, or a column change under an existing key) that can pass InnoDB's 3072-byte limit or indexes TEXT/BLOB without a prefix, `other` (a change Gombit cannot classify fails closed) |
+| `review` | Applies, but changes behavior | `change_foreign_key` (only the `ON DELETE` / `ON UPDATE` action, for example `RESTRICT` to `CASCADE`), `drop_foreign_key`, dropping a primary key, `widen_type`, `table_rebuild` (SQLite), `change_charset` to `utf8mb4` when its indexes still fit, `change_collation` on any other column |
+| `safe` | Adds structure or relaxes a rule | `add_table`, `add_column`, `add_index`, `drop_not_null`, `change_default`, `change_comment`, table charset/collation/comment options, `rename_index` / `rename_foreign_key` / `rename_check` (dropped and re-added under a new name with an identical definition: columns, order, direction, prefixes, predicate, nulls handling, every attribute; anything stricter is classified as a new constraint), … |
+
+A dropped column next to an added column of the same type family is reported
+with the `--rename` command that keeps the data (see
+[Renaming a column](#renaming-a-column)). A new unique index or foreign key
+over a column added in the same plan is safe only when that column is nullable
+and has no default, because every existing row then holds NULL. A default is
+written into every existing row first, so the same index can collide and the
+same foreign key can point at a missing row. SQLite type changes are `review`, not
+`destructive`: SQLite column types are affinities and the rebuild copies every
+stored value as it is.
+
+**Acknowledging a change.** A destructive or unsafe step needs an explicit
+`--allow`. It takes a step ID (`drop_column:products.title`) or a code
+(`add_not_null`, for every step with that code) and is repeatable.
+`makemigrations` refuses to keep a migration that contains an unacknowledged
+step. It classifies the SQL Atlas generated exactly the way
+[`gombit db lint`](#linting-and-repairing-the-migration-directory) will (the
+schema diff plus the statements), so what it records and what lint enforces
+are one set; a refused migration is removed and `atlas.sum` restored. It prints
+the plan and the full command that writes the same migration with every step
+acknowledged, including any `--model` and `--forget-model` the refused run
+named (a refused run saves no registry):
+
+```sh
+gombit db makemigrations reshape_products \
+  --allow drop_column:products.title \
+  --allow add_not_null
+```
+
+`--forget-model` acknowledges the drop of each forgotten model's table, because
+dropping it is what the flag asks for. It matches the table by GORM's default
+name (`LegacyWidget` → `legacy_widgets`), so a model with a custom `TableName`,
+its join tables, or any other dropped table still needs its own `--allow`. It
+acknowledges the drop only when the plan creates no table: any table created
+in the same plan may be the forgotten model renamed, and the drop would lose
+the rows a [table rename](#renaming-a-table) keeps. The plan then suggests the
+rename, with the exact command when exactly one new table holds every
+non-bookkeeping column of the dropped one with the same type. The first migration in an empty directory only creates
+tables, so `makemigrations` skips the plan there. `--rename` generates its own
+SQL and does not plan either.
+
+`gombit db plan` exits non-zero while any destructive or unsafe step is
+unacknowledged, and `--json` prints the steps for tooling. In CI, run it after
+the models change to fail the build on a destructive change nobody signed off
+on. Once the acknowledged migration is committed, the models and the migration
+directory agree and the plan is empty again. `makemigrations` records each
+acknowledged step in the migration it writes as a `-- gombit:allow <id>` line,
+so [`gombit db lint`](#linting-and-repairing-the-migration-directory) accepts it
+in CI, and a hand-written destructive migration without that line fails.
 
 ## Renaming a column
 
@@ -150,6 +247,209 @@ the rename migration. Make other schema changes in a separate run. Identifiers
 must be simple (letters, digits, underscore) — the table/column names GORM
 generates.
 
+## Renaming a table
+
+Renaming a model renames its table (`Product` → `products` becomes `Item` →
+`items`). To Atlas that is a dropped table plus a new one, and to the registry
+it is a model that no longer compiles. `gombit db plan` shows the drop with the
+command that keeps the rows:
+
+```sh
+gombit db plan --forget-model github.com/acme/shop/internal/product.Product \
+  --model github.com/acme/shop/internal/item.Item
+```
+
+```text
+  DESTRUCTIVE  drop_table:products
+               Drops table products and every row in it.
+               Table items is created in the same plan with the same columns. If it replaces products, keep the rows with a rename instead:
+                 gombit db makemigrations <name> --rename-table products:items --model github.com/acme/shop/internal/item.Item --forget-model github.com/acme/shop/internal/product.Product
+```
+
+The supported workflow:
+
+1. Rename the model (and its package, if it moves) and update `AutoMigrate` in
+   `internal/platform/database.go` to the new type. Run `gombit generate` so the
+   `*.gen.go` match.
+2. Write the rename migration and swap the model in the registry:
+
+   ```sh
+   gombit db makemigrations rename_products \
+     --rename-table products:items \
+     --forget-model github.com/acme/shop/internal/product.Product \
+     --model github.com/acme/shop/internal/item.Item
+   ```
+
+   `--rename-table old:new` (repeatable) writes a native
+   `ALTER TABLE ... RENAME TO`, which SQLite, PostgreSQL, and MySQL all support,
+   and foreign keys in other tables follow the table. With `--rename-table`,
+   `--model` and `--forget-model` only update `models.json`; no model diff runs.
+   The registry is written after `atlas.sum` is refreshed, and a failed hash
+   restores both.
+3. Run `gombit db makemigrations sync_items`. GORM names indexes and foreign keys
+   after the table (`idx_products_sku` → `idx_items_sku`, `fk_products_owner` →
+   `fk_items_owner`), so this migration renames them. The plan reports each as a safe `rename_index` /
+   `rename_foreign_key`, because the definition is unchanged and the rows already
+   satisfy it, so no `--allow` is needed. Afterwards `gombit db plan` reports no
+   changes.
+4. `gombit db migrate`.
+
+`--rename-table` and `--rename` can share one run. Table renames apply first,
+so a column rename names the table's new name. Chained or swapped table renames
+(`a:b` with `b:c`, or `a:b` with `b:a`) are rejected; write them as separate
+migrations. `--rename` also accepts `table.old_column=table.new_column`.
+
+A rename migration comes with its exact inverse in
+`downs/<version>_<name>.down.sql` (the column renames undone in reverse, then
+the table renames), so `gombit db rollback` can undo it.
+
+## Linting and repairing the migration directory
+
+`gombit db lint` checks the migration directory without touching the
+application database:
+
+```sh
+gombit db lint               # every migration: what CI should run
+gombit db lint --json
+gombit db lint --latest 1    # only the newest, a local shortcut
+```
+
+`lint`, `repair`, and `check` take `--dir` (default `database/migrations`),
+`--atlas-bin` (default `atlas`), and `--driver` (default: the configured
+driver), which picks the Atlas dev database the migrations are replayed on. For
+PostgreSQL and MySQL that dev database runs in Docker ([Drivers](#drivers)).
+
+- **Integrity.** `atlas.sum` matches every file, and the migrations apply to
+  an empty dev database (Atlas Community Edition `migrate validate`). A
+  mismatch names the changed files and the fix, `gombit db repair`.
+- **Layout.** Every `*.sql` file is an up migration; a down file outside
+  `downs/` is reported with where it belongs.
+- **Safety.** Every migration is classified like
+  [`gombit db plan`](#planning-a-change), from the schema before and after it,
+  and from its own statements with the fail-safe
+  [statement classifier](/guide/migration-safety): `DELETE`, `UPDATE`,
+  `TRUNCATE`, an upsert (`INSERT OR REPLACE`, `ON CONFLICT ... DO UPDATE`,
+  `ON DUPLICATE KEY UPDATE`), a `DROP TABLE` the schema does not show (a table dropped and
+  re-created), an `ALTER COLUMN ... USING` expression (it rewrites every
+  value), an `ALTER COLUMN` with no visible change, and SQL Gombit cannot
+  classify are all destructive or unsafe. A statement the schema diff already
+  explains does not count twice: the column drop it reports, an `ALTER COLUMN`
+  without `USING` whose change the diff classifies, and Atlas's own SQLite
+  rebuild (a copy of every surviving stored column into `new_<table>`
+  (generated columns are recomputed, not copied), by name or as
+  Atlas's `IFNULL(col, <default>) AS col` (a literal, or an expression in
+  parentheses), which Atlas writes only for a column that ends up NOT NULL
+  with that default after a default or NOT NULL change
+  the diff classifies, then the drop and the rename back, as three contiguous
+  statements, with the change that caused it in the diff). Each data-changing
+  statement is its own step, `data_change:<table>.statement_<n>`, so one
+  acknowledgement covers one statement. A destructive or unsafe step passes only when the migration
+  carries a line for it:
+
+  ```sql
+  -- gombit:allow drop_column:products.price
+  ALTER TABLE `products` DROP COLUMN `price`;
+  ```
+
+  The line takes a step ID or a code, like `--allow`. `makemigrations` writes
+  these lines itself for the steps `--allow` or `--forget-model` acknowledged.
+  Renames the migration states (`ALTER TABLE ... RENAME TO`,
+  `RENAME COLUMN`, MySQL `RENAME TABLE`) count as safe `rename_table` /
+  `rename_column` steps, unless the migration also drops that table, and
+  anything else the migration changes is still classified.
+
+`gombit db lint` checks every migration by default and exits non-zero on any
+problem, so CI can run it on every pull request. `--latest N` classifies only
+the N newest, which saves dev-database starts locally but can miss an older
+unacknowledged migration, so don't use it in CI. It does not wrap `atlas migrate lint`, which ADR-012 keeps outside the
+Community Edition dependency surface.
+
+After an intentional hand edit to a migration (a backfill, a
+`-- gombit:allow` line), restore the directory with gombit alone:
+
+```sh
+gombit db repair
+```
+
+It rehashes `atlas.sum`, checks that every migration still applies to an empty
+dev database, and checks [safety manifests](/guide/migration-safety) against their
+SQL. A manifest binds reviewed SQL, so a stale one is reported, and rewritten
+only with `gombit db repair --write-manifests` after you review the change.
+Atlas errors that `gombit db migrate`, `status`, `makemigrations`, and `hash`
+pass through name the gombit command (`gombit db hash`) instead of the Atlas
+CLI.
+
+### Rehashing only: `gombit db hash`
+
+```sh
+gombit db hash [--dir database/migrations] [--atlas-bin atlas]
+```
+
+`gombit db hash` wraps `atlas migrate hash`: it recomputes `atlas.sum` and
+nothing else. It does not replay the migrations or check safety manifests, and
+it needs no dev database. `gombit db repair` rehashes too and then runs those
+checks, so prefer it after a hand edit.
+
+## Checking the whole chain
+
+`gombit db check` runs every schema check in one non-interactive command, for
+local development and CI:
+
+```sh
+gombit db check                  # every layer, against the configured database
+gombit db check --no-db          # a CI job without a database
+gombit db check --db-timeout 10s
+gombit db check --openapi-url http://127.0.0.1:8080/openapi.json
+gombit db check --json
+```
+
+It checks each link from the models to the database, in this order, and
+reports each one as `ok`, `DRIFT`, `ERROR`, or `skipped`, with the command that
+fixes it:
+
+| Layer | Checks | Fix |
+|-------|--------|-----|
+| generated contract | the `*.gen.go` match the models (`gombit generate --check`) | `gombit generate` |
+| model registry | the models `AutoMigrate` lists match `models.json` | `makemigrations --model` / `--forget-model` |
+| migration directory | `atlas.sum` matches and every migration applies to an empty dev database; no misplaced files | `gombit db repair` |
+| migration safety | every destructive or unsafe change carries a `-- gombit:allow` line ([Linting](#linting-and-repairing-the-migration-directory)) | handle the data, acknowledge it |
+| models ↔ migrations | the models declare nothing the migrations lack ([`gombit db plan`](#planning-a-change)) | `gombit db makemigrations` |
+| pending migrations | the database has applied every migration | `gombit db migrate` |
+| database schema | the database has exactly the schema its applied migrations build | capture the change in a migration |
+| TypeScript client | the committed client matches the running app's `/openapi.json` (only with `--openapi-url`) | `gombit client check --write --url ...` |
+
+The **database schema** layer compares `atlas schema inspect` of the
+application database with the migration directory inspected at the last
+applied version, so it finds what was changed outside a migration: a column
+added by hand, an index dropped in a console. Gombit's and Atlas's bookkeeping
+tables (and Atlas's own `atlas_schema_revisions` schema, once it holds nothing
+else) are the only things set aside. On PostgreSQL a schema is part of what
+the migrations build, so a table moved out of `public` or a schema created by
+hand is drift (`extra_schema:<name>`, `missing_schema:<name>`). On MySQL the
+schema is the database itself, so the application database is compared with
+the dev database the migrations replay on whatever each is named. Each difference is listed as a step
+ID, like `add_column:products.extra` (the database has a column the migrations
+don't create) or `drop_index:products.idx_products_name` (the migrations
+create an index the database lacks).
+
+The command exits non-zero when any layer drifts or errors. A clean project
+prints the same report every run, ending in `The schema chain is consistent.`
+`--no-db` skips the pending-migrations and database-schema layers; without it,
+a database that cannot be read within `--db-timeout` (30s by default; `0`
+waits indefinitely) is an error, not a skip, so a CI job that forgets its database fails. The
+pending-migrations layer also reports a version the database has applied but
+the directory no longer has (a migration renamed or deleted after it ran).
+While that is so, or while a migration older than the last applied one is
+still pending, the database-schema layer is skipped: the directory replayed to
+the last applied version is not what the database should have. The migration
+ledger and the live schema are separate reads: when the database answers but
+`atlas schema inspect` fails (no Atlas CLI, no catalog access), the
+database-schema layer reports the error and the pending layer still lists
+what is unapplied. A layer that an earlier one makes meaningless is
+skipped with the reason (the migrations are not classified while `atlas.sum`
+is inconsistent). The command is read-only; on SQLite, opening a database file
+that does not exist yet creates it empty, as `gombit db status` does.
+
 ## Apply / Status / Rollback
 
 M2-2 adds apply, status, and rollback. These commands read the configured
@@ -159,7 +459,7 @@ and the migration directory (default `database/migrations`).
 ```sh
 gombit db migrate [--dir database/migrations] [--atlas-bin atlas]
 gombit db status  [--dir database/migrations] [--atlas-bin atlas]
-gombit db rollback [--dir database/migrations]
+gombit db rollback [--dir database/migrations] [--atlas-bin atlas]
 ```
 
 ### Apply
@@ -302,7 +602,8 @@ integrity. That is separate from D4: Gombit does not store checksums in
 
 ## Drivers
 
-`--driver` (makemigrations) accepts the supported v0.1 database drivers:
+`--driver` (`makemigrations`, `plan`, `lint`, `repair`, `check`) accepts the
+supported database drivers:
 
 | Driver | Atlas dev database |
 | --- | --- |
@@ -311,7 +612,8 @@ integrity. That is separate from D4: Gombit does not store checksums in
 | `mysql` | `docker://mysql/8/dev` |
 
 SQLite runs without Docker. PostgreSQL and MySQL use Atlas dev-database Docker
-URLs, so Docker must be available when generating those migrations.
+URLs, so Docker must be available to generate, plan, lint, repair, or check
+migrations for those drivers.
 
 Apply/status convert the configured GORM DSN into an Atlas `--url` for the
 same three drivers. Libpq keyword/value DSNs with a slash-prefixed `host`

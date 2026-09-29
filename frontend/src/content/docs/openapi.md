@@ -25,7 +25,7 @@ renderer and loads the UI assets from `unpkg.com`; Huma sets a page-specific
 CSP so try-it-out can call the same origin, and the framework adds the browser
 hardening headers (`Referrer-Policy`, `X-Frame-Options`) on top. JSON API
 routes keep the strict API policy `default-src 'none'; frame-ancestors 'none'`
-(see [security.md](https://github.com/gombit-dev/gombit/blob/main/docs/security.md)).
+(see [security.md](/guide/security)).
 
 Raw `app.Router()` routes (webhooks, SSE, probes, metrics) stay out of the
 OpenAPI document and therefore out of `/docs`.
@@ -84,14 +84,16 @@ CI regenerates the sample widget spec and TypeScript client in-process from
 and fails if the committed files would change. An intentional Huma handler
 change without regenerating those fixtures fails CI.
 
-From the repository root:
+From the repository root, pass the example paths explicitly — the bare
+defaults (`openapi.json`, `frontend/src/api/generated`) target a generated app,
+not this repository:
 
 ```sh
 # Report drift without writing (whitespace-only JSON is not drift)
-go run ./cmd/gombit client check
+go run ./cmd/gombit client check --spec examples/client/openapi.json --out examples/client/frontend/src/api/generated
 
 # Rewrite examples/client/openapi.json and the generated TypeScript client
-go run ./cmd/gombit client check --write
+go run ./cmd/gombit client check --write --spec examples/client/openapi.json --out examples/client/frontend/src/api/generated
 
 # Same rewrite via go generate
 go generate ./client

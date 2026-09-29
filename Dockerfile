@@ -14,7 +14,7 @@ FROM golang:1.26-bookworm AS build
 
 # Pin the CLI to the same gombit release as go.mod: the entrypoint's migrate
 # step and `gombit build --embed` must match the framework the server links.
-ARG GOMBIT_VERSION=v0.3.1
+ARG GOMBIT_VERSION=v0.6.0
 
 # Node 22 (Vite build, pnpm via corepack) + a C toolchain for cgo SQLite.
 RUN apt-get update \

@@ -28,6 +28,10 @@
         "title": "Lifecycle"
       },
       {
+        "slug": "health",
+        "title": "Health probes"
+      },
+      {
         "slug": "routing",
         "title": "Routing"
       },
@@ -38,6 +42,14 @@
       {
         "slug": "caching",
         "title": "Caching"
+      },
+      {
+        "slug": "jobs",
+        "title": "Background jobs"
+      },
+      {
+        "slug": "security",
+        "title": "Security headers"
       }
     ]
   },
@@ -51,6 +63,18 @@
       {
         "slug": "migrations",
         "title": "Migrations"
+      },
+      {
+        "slug": "migration-safety",
+        "title": "Migration safety"
+      },
+      {
+        "slug": "validation",
+        "title": "Model validation & transactions"
+      },
+      {
+        "slug": "fields",
+        "title": "Field types"
       }
     ]
   },
@@ -60,6 +84,10 @@
       {
         "slug": "contract",
         "title": "Contract & validation"
+      },
+      {
+        "slug": "app-contract",
+        "title": "Application contract"
       },
       {
         "slug": "openapi",
@@ -102,6 +130,15 @@
       {
         "slug": "admin",
         "title": "Admin"
+      }
+    ]
+  },
+  {
+    "title": "Testing",
+    "pages": [
+      {
+        "slug": "fault-injection",
+        "title": "Fault injection & chaos"
       }
     ]
   },

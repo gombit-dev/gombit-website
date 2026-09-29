@@ -39,6 +39,17 @@ fmt.Println(db.Driver())
 fmt.Println(db.Capabilities().Returning)
 ```
 
+To open over a `database/sql` handle you built yourself (a driver wrapped for
+tracing, or, in tests, for fault injection), use `database.OpenConn`. The DB
+gets the same GORM setup as from `Open` (error translation, model `Validate`
+hooks); you own the handle's pool settings (`database.ConfigurePool` applies
+`Open`'s), and `db.Close()` closes it:
+
+```go
+conn := sql.OpenDB(instrumented) // your driver.Connector
+db, err := database.OpenConn(database.DriverPostgres, conn)
+```
+
 `framework.App` can receive an opened handle through `framework.WithDatabase`;
 the caller owns opening and closing that handle. `app.Database()` returns the
 metadata handle and `app.DB()` returns the raw `*gorm.DB` escape hatch.
@@ -46,9 +57,10 @@ HTTP-only apps can omit `WithDatabase`.
 
 ## Error mapping
 
-`database.Open` does not set `gorm.Config.TranslateError`, so duplicate-key
-errors are usually the driver string rather than `gorm.ErrDuplicatedKey`.
-Callers should not inspect those strings themselves:
+`database.Open` (and `OpenConn`) enable `gorm.Config.TranslateError`, so each
+dialector maps its unique-violation code to `gorm.ErrDuplicatedKey`; the
+driver's error string stays a fallback. Callers should not inspect either
+themselves:
 
 ```go
 if err := db.Create(&row).Error; err != nil {
@@ -59,13 +71,58 @@ if err := db.First(&row, id).Error; err != nil {
 }
 ```
 
-| Helper | `gorm.ErrRecordNotFound` | unique / duplicate | other |
-| --- | --- | --- | --- |
-| `MapLoadError` | D10 `not_found` | `internal` | `internal` |
-| `MapPersistError` | `internal` | D10 `conflict` | `internal` |
+| Helper | Maps | Anything else |
+| --- | --- | --- |
+| `MapLoadError` | `gorm.ErrRecordNotFound` → D10 `not_found` (404) | `internal` |
+| `MapPersistError` | `*database.ValidationError` → `validation_error` (422, with its fields); unique / duplicate → `conflict` (409); foreign-key or NOT NULL violation → `validation_error` (422) | `internal` |
+| `MapDeleteError` | `database.ErrReferenced` or a foreign-key violation → `conflict` (409) | `internal` |
 
-`IsUniqueViolation` is the shared detector used by those helpers and by
-auth registration. See [`docs/contract.md`](/guide/contract#application-errors-41-categories).
+`IsUniqueViolation`, `IsForeignKeyViolation`, and `IsNotNullViolation` are the
+shared detectors behind those helpers; auth registration uses
+`IsUniqueViolation` too. See [`docs/contract.md`](/guide/contract#application-errors-41-categories).
+
+## Deleting rows
+
+Gombit deletes rows physically: its deletion semantics are the database's
+([ADR-019](https://github.com/gombit-dev/gombit/blob/main/docs/adr/019-hard-delete-semantics.md)). A relation's `on_delete` becomes
+the foreign key's `ON DELETE`, and deleting the parent does exactly that, in one
+statement the database enforces:
+
+| `on_delete` | Deleting a referenced parent |
+| --- | --- |
+| `restrict` (default) | refused; `database.ErrReferenced`, a `409 conflict` through `MapDeleteError` |
+| `cascade` | the referencing rows are deleted too |
+| `set_null` | the referencing rows keep their data with the key set to NULL |
+
+`gombit make resource` generates models without soft delete (an `ID`,
+`CreatedAt`, `UpdatedAt`, no `DeletedAt`), so GORM's own `Delete` on them is a
+real `DELETE`. `database.Delete` is the framework's delete, and the admin uses
+it:
+
+```go
+n, err := database.Delete(ctx, db, &book.Book{}, id)
+if errors.Is(err, database.ErrReferenced) {
+	// another row still references it (ON DELETE RESTRICT)
+}
+return database.MapDeleteError(ctx, err, "book is still referenced", "delete book")
+```
+
+It deletes even a model that embeds `gorm.DeletedAt` (`gorm.Model`). GORM's own
+`Delete` on such a model only sets `deleted_at`, so no foreign key fires and a
+live row keeps pointing at one the API reports as gone. There is no restore, and
+Gombit does not emulate foreign keys on soft-deleted rows.
+
+**Moving an existing `gorm.Model` resource to hard delete.** Replace the
+embedded `gorm.Model` with `` ID uint `gorm:"primaryKey" json:"id"` ``,
+`CreatedAt time.Time`, and `UpdatedAt time.Time`. First decide what happens to
+the rows that are already soft-deleted: remove them
+(`DELETE FROM books WHERE deleted_at IS NOT NULL`) or clear their
+`deleted_at` to bring them back. Then generate the migration; it drops
+`deleted_at`, a destructive step you acknowledge:
+
+```sh
+gombit db makemigrations drop_books_deleted_at --allow drop_column:books.deleted_at
+```
 
 ## Capabilities
 
@@ -93,12 +150,13 @@ defaults:
 | PostgreSQL | 25 | 5 | 30m |
 | MySQL | 25 | 5 | 30m |
 
-Set `Config.Database.MaxOpenConns`, `MaxIdleConns`, or `ConnMaxLifetime` to
+Set `Config.Database.MaxOpenConns`, `MaxIdleConns`, or `ConnMaxLifetime` (the
+`GOMBIT_DATABASE_*` variables in [`docs/config.md`](/guide/configuration#environment)) to
 override these defaults.
 
 The default SQLite DSN writes `gombit.db` in the current working directory.
-Production checks for unwritable SQLite paths are tracked with the later
-Appendix C hardening work.
+`gombit doctor` flags a SQLite path whose directory is missing or not writable
+(the `insecure` row).
 
 ## Integration Tests
 
@@ -123,6 +181,12 @@ Official multi-DB support is gated by the conformance suite under
 - timestamps, nullable columns, unique constraints, indexes
 - decimal round-trip
 - CRUD, transactions, pagination (`Offset` / `Limit`)
+- relation deletion (`relation_deletion`): `ON DELETE` `RESTRICT` / `CASCADE` /
+  `SET NULL` through `database.Delete`
+
+`TestDatabaseCheck` runs `gombit db check`'s database-schema layer on each
+driver: a migrated database matches its migrations, and a column added outside
+a migration is reported.
 
 The suite uses the `conformance` build tag so default `go test ./...` stays
 offline. Install Atlas Community Edition and set `ATLAS_BINARY` (or have

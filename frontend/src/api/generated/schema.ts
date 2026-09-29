@@ -428,6 +428,7 @@ export interface components {
             related?: components["schemas"]["Relation"];
             required: boolean;
             type: string;
+            writeonly?: boolean;
         };
         LoginBody: {
             /**
