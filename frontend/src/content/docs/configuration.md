@@ -22,6 +22,7 @@ shape with environment-derived `/docs` and cache namespace. Mutating
 - cache driver: `memory`
 - cache namespace: `gombit:development`
 - Redis address: `127.0.0.1:6379`
+- jobs driver: `sync` (default queue `default`, namespace as for the cache)
 - log level: `info`
 - log sink: `stderr`
 
@@ -53,6 +54,9 @@ recognizes:
 | `GOMBIT_DATABASE_CONN_MAX_LIFETIME` | `Config.Database.ConnMaxLifetime` | `0` |
 | `GOMBIT_CACHE_DRIVER` | `Config.Cache.Driver` | `memory` |
 | `GOMBIT_CACHE_NAMESPACE` | `Config.Cache.Namespace` | derived from app/environment |
+| `GOMBIT_JOBS_DRIVER` | `Config.Jobs.Driver` | `sync` |
+| `GOMBIT_JOBS_QUEUE` | `Config.Jobs.Queue` | `default` |
+| `GOMBIT_JOBS_NAMESPACE` | `Config.Jobs.Namespace` | derived from app/environment |
 | `GOMBIT_REDIS_ADDR` | `Config.Cache.Redis.Addr` | `127.0.0.1:6379` |
 | `GOMBIT_REDIS_USERNAME` | `Config.Cache.Redis.Username` | empty |
 | `GOMBIT_REDIS_PASSWORD` | `Config.Cache.Redis.Password` | empty |
@@ -85,6 +89,9 @@ regenerating. See [frontend.md](/guide/frontend#talking-to-the-api).
 `production`.
 `GOMBIT_DATABASE_DRIVER` accepts `sqlite`, `postgres`, and `mysql`.
 `GOMBIT_CACHE_DRIVER` accepts `memory`, `redis`, and `noop`.
+`GOMBIT_JOBS_DRIVER` accepts `sync`, `memory`, and `redis`; the `redis` driver
+connects with the shared `GOMBIT_REDIS_*` settings, which are then validated
+even when the cache does not use Redis. See [jobs.md](/guide/jobs#drivers).
 When `GOMBIT_CACHE_NAMESPACE` is unset, the namespace is derived from the
 normalized app name and environment, such as `gombit:development`.
 `GOMBIT_HTTP_TRUSTED_PROXIES` is a comma-separated list of IPs or CIDRs passed
@@ -112,7 +119,7 @@ and turn off in `production`. `/openapi.json` is always served.
 `false`: the framework does not rewrite request input (issue #271 / PERF-13).
 XSS is handled on output; set it to `true` to install the legacy ingress HTML
 sanitizer, or call `framework.SanitizeHTML` per field. See
-[security.md](https://github.com/gombit-dev/gombit/blob/main/docs/security.md#input-sanitization-opt-in).
+[security.md](/guide/security#input-sanitization-opt-in).
 `GOMBIT_LOG_LEVEL` accepts `debug`, `info`, `warn`, and `error`.
 `GOMBIT_LOG_SINK` accepts `stderr`, `stdout`, and `mongo`; Mongo logging is an
 external module hook, not a runtime dependency.
@@ -132,9 +139,14 @@ shorter than 32 characters, for the generated-app development placeholder,
 and for cookie-mode auth (`GOMBIT_AUTH_MODE=cookie`) without
 `GOMBIT_COOKIE_SECURE=true` (`config.Load` / `Validate` and `gombit
 doctor`). The secret is never copied into `FieldError.Value` and is
-redacted by `Config.Redacted()`. Remaining Appendix C cases (CORS) land
-with the features that introduce those fields. Do not put JWT material in
-`VITE_*`.
+redacted by `Config.Redacted()`. Production config also rejects
+`GOMBIT_REDIS_TLS_INSECURE=true` whenever Redis is in use (the `redis` cache or
+jobs driver) and trusted proxies that trust everything (above). In every
+environment, validation rejects a negative `GOMBIT_HTTP_REQUEST_TIMEOUT`,
+negative `GOMBIT_DATABASE_MAX_OPEN_CONNS` / `MAX_IDLE_CONNS` /
+`CONN_MAX_LIFETIME`, a max-idle count above a non-zero max-open count, and,
+when Redis is in use, a non-positive Redis timeout. Remaining Appendix C cases (CORS) land with the
+features that introduce those fields. Do not put JWT material in `VITE_*`.
 See [auth.md](/guide/authentication) (Bearer default) and
 [auth-cookie.md](/guide/authentication-cookie) (`--auth cookie`, threat model).
 

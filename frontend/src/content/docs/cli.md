@@ -28,6 +28,7 @@ go run ./cmd/gombit --help
 | `gombit generate` | Regenerate model-first resource files (`*.gen.go`); `--check` gates drift | RESGEN-1 |
 | `gombit db …` | Atlas-backed migrations | M2, migrated onto Cobra in M4-1 |
 | `gombit db verify` | Classify + verify migration safety manifests | HOST-3 |
+| `gombit db plan` / `lint` / `repair` / `hash` / `check` | Plan a schema change, lint and repair the migration directory, recompute `atlas.sum`, check the whole schema chain | SCHEMA-2, SCHEMA-4, SCHEMA-6; `hash` #219 |
 | `gombit openapi generate` | Write the live OpenAPI 3.1 document | M3-3 |
 | `gombit contract app` | Emit the machine-readable application contract | HOST-1 |
 | `gombit client generate` / `check` | TypeScript client + drift | M3-4, M3-5 |
@@ -35,6 +36,8 @@ go run ./cmd/gombit --help
 | `gombit doctor` | Environment and config checks | M4-4 |
 | `gombit config show` | Print typed config with secrets redacted | M4-4 |
 | `gombit createsuperuser` | Create a superuser (admin) account | M4-6 |
+| `gombit worker` | Run the app's background-job worker | JOBS-3 |
+| `gombit jobs …` | Inspect, retry, and delete failed jobs | JOBS-6 |
 | `gombit version` | Print version and build metadata | REL-4 |
 
 ## Generator golden tests
@@ -173,9 +176,10 @@ and `cli.ExecuteRoot`. Public product routes are Huma-typed under `/api/v1`.
 There is no generated `service.go` or `repo.go` until
 `gombit make resource --service` / `--repo`.
 
-`.env.example` lists `GOMBIT_*` server variables from the `config` package
-and public `VITE_API_URL` (empty means same-origin for the Vite `/api`
-proxy). `VITE_*` is baked into the browser bundle — never put secrets there.
+`.env.example` lists every `GOMBIT_*` server variable the `config` package
+reads (optional ones commented out with their defaults; the cookie-auth
+settings only in `--auth cookie` apps) and public `VITE_API_URL` (empty
+means same-origin for the Vite `/api` proxy). `VITE_*` is baked into the browser bundle — never put secrets there.
 Access tokens stay in memory; generated source does not use `localStorage`.
 
 ## `gombit dev`
@@ -295,7 +299,22 @@ From an application directory (the output of `gombit new`):
 gombit make resource Widget name:string:required price:int
 gombit make resource Invoice --service --repo --dry-run
 gombit make resource Widget --force
+gombit make resource Session --id uuid
 ```
+
+`--id` chooses the primary key. `uint` (the default) is an auto-increment `ID`.
+`uuid` scaffolds an application-assigned `uuid.UUID` primary key (`char(36)`,
+portable across SQLite, PostgreSQL, and MySQL). Both come with `CreatedAt` and
+`UpdatedAt` and no soft-delete `DeletedAt`: Gombit deletes rows physically, so
+the database's `ON DELETE` policy is what deletion does
+([ADR-019](https://github.com/gombit-dev/gombit/blob/main/docs/adr/019-hard-delete-semantics.md)). The model sets the id in `BeforeCreate` when it is still
+`uuid.Nil`. Composite primary keys are rejected. A `belongs_to` or
+`one_to_one` foreign key uses the target model's primary key when that model
+is already on disk, and `uint` when it is not. A self relation uses this
+resource's `--id`. A model on disk whose key is not `uint` or `uuid.UUID`
+is rejected. The foreign key stays filterable, so
+`GET /children?<fk>=<id>` lists a parent's rows for a UUID key the same way
+it does for `uint`.
 
 `make` is a Cobra parent (`AddCommand`); `resource` is the subcommand. Root
 help lists `make`.
@@ -306,7 +325,7 @@ plumbing. It writes a feature-package under `internal/<snake>/`:
 
 | File | Owner | When |
 | --- | --- | --- |
-| `<snake>.go` | **you** | GORM model (`gorm.Model` + fields), plus the `gombit:"..."` field policy translated from the CLI modifiers. Scaffolded once; edit it freely — re-running `make resource` never overwrites it (use `--force` to re-scaffold). No DO-NOT-EDIT banner. |
+| `<snake>.go` | **you** | GORM model (an auto-increment `ID`, or a `uuid.UUID` key with `--id uuid`, plus `CreatedAt` / `UpdatedAt` and the fields; no soft delete), plus the `gombit:"..."` field policy translated from the CLI modifiers. Scaffolded once; edit it freely — re-running `make resource` never overwrites it (use `--force` to re-scaffold). No DO-NOT-EDIT banner. |
 | `.gombit-resource` | generator | Marker that makes the package a model-first resource `gombit generate` regenerates. |
 | `dto.gen.go` | generator | Request/response DTOs + model↔DTO mappers. **DO NOT EDIT** — regenerated from the model. |
 | `handler.gen.go` | generator | Huma list/get/create over GORM + `Register(app *framework.App)` (D10 envelope; list honors `page`/`per_page` and the declared filter/sort/search/aggregate surface; `not_found`/`conflict` mapping). **DO NOT EDIT.** |
@@ -319,10 +338,11 @@ by editing the generated `*.gen.go`** (regeneration overwrites them). See the
 [migration guide](/guide/model-first-resources) if you have resources
 from the old human-owned-`handler.go` layout.
 
-Default API prefix is `/api/v1`. Enum fields (`status:enum(a,b,c)`) are not yet
-supported by the model-first generator (enum values are not a GORM schema fact)
-and are rejected; use a string field for now. `--service` and `--repo` are C6
-opt-in and are not used by the generated handler.
+Default API prefix is `/api/v1`. Enum fields (`status:enum(draft=Draft,published=Published)`)
+keep the stored values on the model's `validate` tag and the display labels
+in `label=` when they differ. `gombit generate` emits the stored values as
+a Huma `enum` on the create body. The form and the admin show the label.
+`--service` and `--repo` are C6 opt-in and are not used by the generated handler.
 
 Route registration is appended in `cmd/server/main.go` via `go/ast` +
 `go/parser` + `go/format` (never regex), next to `product.Register(app)`.
@@ -338,8 +358,10 @@ into generated imports.
 Frontend pages are React + TypeScript (list/table + React Hook Form create)
 under `frontend/src/<feature>/`. They import types from
 `frontend/src/api/generated` — no hand-written API DTOs — and map D10
-`error.fields` through `frontend/src/api/formErrors.ts`. Integer fields
-coerce a cleared number input to `0` (`setValueAs`), not JSON `null`. A generated
+`error.fields` through `frontend/src/api/formErrors.ts`. A non-pointer
+integer coerces a cleared number input to `0` (`setValueAs`). A pointer
+number (`*uint` and any other `*T`) submits JSON `null`, which is what that
+Go type accepts. A generated
 `frontend/src/resources.tsx` registry is the React Router registration
 point (not regex-patched `main.tsx`). When `gombit.yaml` has `ui: mui`,
 list/form pages use MUI Table and TextField instead of raw HTML. Generated
@@ -354,34 +376,55 @@ After generating routes, run `gombit client generate` or `gombit dev` so
 Design §27 subset:
 
 ```text
-name:type[:required][,unique][,index]
+name:type[:modifier[,modifier…]]
 ```
 
-Supported types: `string`, `text`, `int`, `int64`, `bool`, `uint`, `decimal`,
-`time`. Unknown types error with the supported list. `nullable` is
-accepted as the opposite of `required`. Enum fields are not supported by the
-model-first generator yet (see above) and are rejected — use a `string`.
+The type is any generated kind in [fields.md](/guide/fields): `string`, `text`,
+`int` / `integer`, `int64` / `integer64`, `uint` / `unsigned`, `float` /
+`float64`, `decimal`, `bool` / `boolean`, `date`, `time` / `datetime`,
+`time_of_day`, `duration`, `uuid`, `json`, `email`, `url`, `slug`, `ip`,
+`enum(value)` or `enum(value=Label)`, and the relations `belongs_to`,
+`one_to_one`, `has_many`, and `many_to_many`. An unknown type errors with the
+list of supported scalar types (one spelling each; relation kinds are not
+listed).
+
+Modifiers are `required`, `nullable` (the opposite of `required`), `unique`,
+`index`, the [list-query](/guide/contract#list-query-filter--sort--search) modifiers
+`filterable`, `sortable`, `searchable`, and `aggregatable`, and the constraints
+`default=`, `min=`, `max=`, `max_length=`, and `regex=` (see
+[fields.md § Constraints](/guide/fields#constraints)). Relations also take
+`on_delete=`. `time` is a datetime. `time_of_day` is a clock
+(`HH:MM:SS`). `duration` is a Go duration stored as nanoseconds.
 
 | Type | Go type | Column / contract |
 | --- | --- | --- |
 | `decimal` | `types.Decimal` (wraps `shopspring/decimal`) | `decimal(19,4)`; JSON string, exact — no float rounding |
 | `decimal(p,s)` | `types.Decimal` | `decimal(p,s)`, e.g. `decimal(10,2)` |
 | `time` | `time.Time` | RFC3339 date-time in JSON |
-| `belongs_to:Target` | FK `TargetID uint` + `Target target.Target` | DTO exposes `target_id`; admin renders a picker |
+| `time_of_day` | `types.TimeOfDay` | `char(8)` clock. `HH:MM`, `HH:MM:SS`, and `15:04:05+07:00` are one pattern, stored as `HH:MM:SS`. Optional is a pointer; a blank submits null |
+| `duration` | `types.Duration` | bigint nanoseconds; JSON is a Go duration (`1h30m0s`). Optional is a pointer |
+| `enum(draft=Draft)` | `string` | stored value `draft`, display label `Draft`. The API enum is the stored value |
+| `belongs_to:Target` | FK `TargetID` + `Target target.Target` | DTO exposes `target_id`; admin renders a picker. The FK type is the target primary key (`uint` or `uuid.UUID`). `nullable` makes the FK a pointer. `on_delete` is `restrict` (the default), `cascade`, or `set_null` |
+| `one_to_one:Target` | unique FK `TargetID` + `Target target.Target` | same wire as `belongs_to`; the foreign key is unique |
 | `has_many:Target` | `[]target.Target` | model-only, read via the admin; the child must carry the parent FK |
 | `many_to_many:Target` | `[]target.Target` (`many2many:` join) | model-only, edited via the admin |
 
 `types.Decimal` is the framework money/decimal type. Because a single Go type
 flows through the model, the handler DTO, the OpenAPI/TS contract, and GORM,
 adding one of these types does not reproduce the model/DTO drift of
-[#218](https://github.com/gombit-dev/gombit/issues/218). A `time` or `decimal`
-field **without** `:required` becomes a pointer (`*time.Time` / `*types.Decimal`)
-on the model and DTO, because those value types cannot be submitted empty — the
-generated forms send `null` for a blank optional value.
+[#218](https://github.com/gombit-dev/gombit/issues/218). A `time`, `date`,
+`decimal`, `uuid`, `time_of_day`, or `duration` field **without** `:required`
+becomes a pointer (`*time.Time` / `*types.Date` / `*types.Decimal` /
+`*uuid.UUID` / `*types.TimeOfDay` / `*types.Duration`) on the model and DTO,
+because those value types cannot be submitted empty — the generated forms send
+`null` for a blank optional value. The same holds for an optional `email`,
+`url`, `slug`, or `ip`, and for a `string` whose `regex=` rejects `""`, so a
+blank value is `null` rather than an invalid `""`.
 
 **Relations** use `name:kind:Target`, where `Target` is a model in
 `internal/<target>/` (imported as `target.Target`). `belongs_to` generates the
-foreign key (`EngineID uint`) plus the association and exposes `engine_id` in
+foreign key (`EngineID`, `uint` or `uuid.UUID` to match the target's primary
+key) plus the association and exposes `engine_id` in
 the REST DTO; `has_many` and `many_to_many` generate the association on the model
 (the join table for m2m), not in the thin REST handler. In the admin,
 `many_to_many` is editable through a relation widget and `has_many` is shown
@@ -389,12 +432,17 @@ read-only. A `has_many` child model must carry the parent foreign key itself
 (e.g. `RentalID`); the generator does not edit the child (that would be an
 import cycle).
 
-Self-referential relations (a target equal to the resource itself, e.g.
-`parent:belongs_to:Category` on `Category`) are not supported yet and are
-rejected at parse time: a self-referential `belongs_to` needs a nullable foreign
-key so a tree root stores `NULL` rather than `0` (which references no row and
-fails the self-FK), and `has_many` / `many_to_many` onto the same model need
-explicit join keys. Point relations at a different feature-package for now.
+A self-referential `belongs_to` or `one_to_one` is allowed when it is
+`nullable`, so a tree root stores `NULL` rather than `0`:
+
+```sh
+parent:belongs_to:Category,nullable,on_delete=set_null
+```
+
+The association is a pointer (`Parent *Category`). A value field of the
+enclosing struct would not compile.
+`on_delete=set_null` requires `nullable`. `has_many` and `many_to_many` onto
+the same model are still rejected: they need explicit join keys.
 
 Example:
 
@@ -529,16 +577,44 @@ Registration edits use `go/ast` + `go/parser` + `go/format` (never regex).
 (or a user-owned file) is refused unless `--force`. `commands.go` and
 `cmd/gombit/main.go` are additive AST edits of known registration points.
 
-Command names that collide with framework families (`new`, `dev`, `build`,
-`make`, `db`, `openapi`, `client`, `routes`, `doctor`, `config`,
-`createsuperuser`, `version`, `help`, `completion`) are rejected.
+Command names that collide with framework families (`new`, `dev`, `worker`,
+`jobs`, `build`, `make`, `generate`, `db`, `openapi`, `contract`, `client`,
+`routes`, `doctor`, `config`, `createsuperuser`, `version`, `help`,
+`completion`) are rejected, as are `gombit` and `register`.
+
+## `gombit worker`
+
+```sh
+gombit worker [--queue default] [--concurrency N] [--lease 5m] [--shutdown-timeout 30s] [--metrics-addr :9091]
+```
+
+Runs the app's background-job worker from an application directory: it
+builds `./cmd/server` and runs `server worker` with the same flags, stopping
+it gracefully on Ctrl+C and exiting with its status. In production run the
+built binary: `./server worker`. It needs `GOMBIT_JOBS_DRIVER=redis`. See
+[jobs.md § Running the worker](/guide/jobs#running-the-worker).
+
+## `gombit jobs`
+
+```sh
+gombit jobs failed [--queue q] [--limit 50] [--json]
+gombit jobs inspect <id> [--queue q] [--json]
+gombit jobs retry <id>... | --all [--queue q]
+gombit jobs forget <id>... [--queue q]
+gombit jobs purge --force [--older-than 720h] [--queue q]
+```
+
+Lists, inspects, retries, and deletes the jobs a worker gave up on, straight
+from the Redis queue (`GOMBIT_JOBS_DRIVER=redis`); it does not need the app's
+code. See [jobs.md § Failed jobs](/guide/jobs#failed-jobs).
 
 ## `gombit db`
 
-Same subcommands and flags as M2, now on Cobra:
+Subcommands (each takes `--help` for its full flag list):
 
 ```sh
 gombit db makemigrations create_products --model github.com/example/demo/internal/product.Product
+gombit db plan [--allow <id>] [--json]
 gombit db migrate
 gombit db rollback
 gombit db status
@@ -546,20 +622,47 @@ gombit db seed
 gombit db reset [--force]
 gombit db verify [--write] [--json] [--strict]
 gombit db hash
+gombit db lint [--latest N] [--json]
+gombit db repair [--write-manifests]
+gombit db check [--no-db] [--db-timeout 30s] [--openapi-url URL] [--json]
 ```
 
 `gombit db hash` wraps `atlas migrate hash` to recompute the directory checksum
 (`atlas.sum`) after a migration is hand-edited (e.g. to backfill a renamed
 column), so recovery from a checksum mismatch never needs the raw Atlas CLI.
 `atlas migrate hash` is part of Atlas Community Edition ([ADR-012](https://github.com/gombit-dev/gombit/blob/main/docs/adr/012-migrations-atlas-gorm-provider.md)).
+`gombit db lint` checks the directory's integrity, layout, and the safety of every
+migration, from the schema before and after it and from its statements (a
+destructive or unsafe change needs a `-- gombit:allow <id>` line in the
+migration), and `gombit db repair` restores consistency after a hand
+edit. See
+[migrations.md § Linting and repairing](/guide/migrations#linting-and-repairing-the-migration-directory).
 
-> Surfacing destructive/non-appliable changes (`atlas migrate lint`) is **not**
-> wrapped here: ADR-012 places `atlas migrate lint` outside the v0.1 Community
-> Edition dependency surface. Migration-safety analysis and the field-rename
-> affordance are tracked in [#299](https://github.com/gombit-dev/gombit/issues/299).
+`gombit db check` is the single schema-integrity gate for local development
+and CI: it runs the generated-contract, model-registry, migration-directory,
+migration-safety, models ↔ migrations, pending-migration, and database-schema
+checks (plus the TypeScript client with `--openapi-url`), names the layer that
+is inconsistent with its fix, and exits non-zero on any drift. `--no-db` skips
+the database layers. See
+[migrations.md § Checking the whole chain](/guide/migrations#checking-the-whole-chain).
+
+`gombit db plan` classifies the change the models imply against the migration
+directory before a migration is written: `destructive` (a dropped table or
+column, a narrowed type), `unsafe` (fails on a populated table, such as a new
+NOT NULL column with no default), `review`, or `safe`. It uses
+`atlas schema inspect` and Atlas's own diff, not `atlas migrate lint`, which
+ADR-012 keeps outside the Community Edition dependency surface. It exits
+non-zero on an unacknowledged destructive or unsafe step. `makemigrations
+--rename-table old:new` renames a table with a native `ALTER TABLE ... RENAME
+TO` and, with `--forget-model` / `--model`, swaps the renamed model in the
+registry (see
+[migrations.md § Renaming a table](/guide/migrations#renaming-a-table)).
+`gombit db makemigrations` runs the same plan and refuses to write such a
+migration until each step is acknowledged with `--allow <id|code>`. See
+[migrations.md § Planning a change](/guide/migrations#planning-a-change).
 
 See [migrations.md](/guide/migrations) for Atlas behavior and
-[migration-safety.md](https://github.com/gombit-dev/gombit/blob/main/docs/migration-safety.md) for `gombit db verify` — the
+[migration-safety.md](/guide/migration-safety) for `gombit db verify` — the
 migration safety manifest and verifier a deployment host uses to gate
 destructive migrations (HOST-3).
 
@@ -605,9 +708,11 @@ unwritable SQLite path is enough to flag a deliberately-broken config.
 
 Appendix C rejects a production JWT secret shorter than 32 characters, and
 the generated-app development placeholder, on the `config` row
-(`config.Load`) and the `insecure` row when config is stubbed past Load. Cookie `Secure` and CORS+credentials checks wait for
-M5-3. Production trusted-proxy and Redis `TLSInsecure` rejections already
-live in `config.Validate()` and show up on the `config` row.
+(`config.Load`) and the `insecure` row when config is stubbed past Load.
+Production cookie-mode auth without `GOMBIT_COOKIE_SECURE=true`, trusted-proxy,
+and Redis `TLSInsecure` rejections live in `config.Validate()` and show up on
+the `config` row. Gombit has no CORS configuration, so there is no
+CORS+credentials check.
 
 ## `gombit config show`
 
@@ -672,9 +777,9 @@ gombit --version
 ```
 
 ```text
-gombit:   v0.1.0
-commit:   9abb3c6ecc8c1bf93419aa43c4d4f1ae3de97a2b
-built:    2026-08-18T19:33:15Z
+gombit:   v0.6.0
+commit:   617b487f7abe353bf9bbbb8fc78bc69709bee18c
+built:    2026-09-28T08:03:45Z
 go:       go1.26.0
 platform: linux/amd64
 ```
@@ -688,7 +793,7 @@ Version resolution has three tiers, in order:
    `-X github.com/gombit-dev/gombit/cli.Version=<tag>` (plus
    `Commit` and `BuildDate`).
 2. **Module build info.** A binary from
-   `go install github.com/gombit-dev/gombit/cmd/gombit@v0.1.0`
+   `go install github.com/gombit-dev/gombit/cmd/gombit@v0.6.0`
    carries no ldflags, so the version comes from
    `runtime/debug.ReadBuildInfo()`. `commit` and `built` come from the
    embedded `vcs.revision` / `vcs.time` settings when the build had them.
@@ -700,7 +805,7 @@ Version resolution has three tiers, in order:
 want in scripts:
 
 ```sh
-test "$(gombit version --short)" = "v0.1.0"
+test "$(gombit version --short)" = "v0.6.0"
 ```
 
 See [installation.md](/guide/installation) and [releasing.md](https://github.com/gombit-dev/gombit/blob/main/docs/releasing.md).
@@ -716,4 +821,4 @@ host builds, health-checks, and migrates the app, projected from declared
 config and `go.mod`, never inferred from the source tree. Writes JSON to stdout
 or `--out`; `--dir` selects the project directory. Fails loudly when the
 framework version is missing or replaced by a local checkout. See
-[app-contract.md](https://github.com/gombit-dev/gombit/blob/main/docs/app-contract.md).
+[app-contract.md](/guide/app-contract).

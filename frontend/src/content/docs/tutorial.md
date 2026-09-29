@@ -2,7 +2,7 @@
 
 You'll build a small task tracker end to end: a typed API, a migration, a
 generated TypeScript client, a React page, cookie login, and the same model
-running in the admin. That's the whole v0.1 loop.
+running in the admin. That's the core CRUD loop.
 
 **Time:** about 45 minutes.
 **Prerequisites:** [installation.md](/guide/installation) — Go 1.26+, Node 22+,
@@ -129,18 +129,22 @@ Create `internal/task/task.go`:
 ```go
 package task
 
-import "gorm.io/gorm"
+import "time"
 
 // Task is the feature-package GORM model.
 type Task struct {
-	gorm.Model
-	Title string `gorm:"size:255;not null"`
-	Done  bool
+	ID        uint `gorm:"primaryKey" json:"id"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Title     string `gorm:"size:255;not null"`
+	Done      bool
 }
 ```
 
-`gorm.Model` supplies `ID`, `CreatedAt`, `UpdatedAt`, and a soft-delete
-`DeletedAt`.
+`ID` is an auto-increment key GORM assigns, and `CreatedAt` / `UpdatedAt` are
+set on write. There is no soft-delete `DeletedAt`: deleting a task removes the
+row, and the database's foreign keys decide what that does to rows that
+reference it ([ADR-019](https://github.com/gombit-dev/gombit/blob/main/docs/adr/019-hard-delete-semantics.md)).
 
 Now generate the SQL. `makemigrations` takes the model type explicitly — it
 doesn't scan your project:
@@ -215,15 +219,17 @@ human-owned source of truth, and everything else is derived from it.
 - `hooks.go` is **yours** — a default no-op `BeforeCreate` where you set
   server-managed values. Seeded once, never overwritten.
 
-The field grammar is
-`name:type[:required][,unique][,index][,filterable][,sortable][,searchable][,aggregatable]`,
-over `string`, `text`, `int`, `int64`, `bool`, and `uint`. The query modifiers
+The field grammar is `name:type[:modifier[,modifier…]]`. The type is any kind
+in [fields.md](/guide/fields): scalars such as `string`, `int`, `decimal`, `date`,
+`uuid`, and `email`, `enum(draft=Draft,published=Published)`, or a relation.
+Modifiers are `required` / `nullable`, `unique`, `index`, the query modifiers
+`filterable`, `sortable`, `searchable`, and `aggregatable`, and the constraints
+`default=`, `min=` / `max=`, `max_length=`, and `regex=`. The query modifiers
 become `gombit:"..."` policy on the model field and opt it into the list
 handler's declared query surface — see the
 [list query](/guide/contract#list-query-filter--sort--search) section. A numeric
 field can also be `aggregatable` for server-side `?aggregate=sum:<field>` totals
 in `meta.aggregates` — see [numeric aggregates](/guide/contract#list-query-numeric-aggregates).
-(Enum fields aren't supported by the model-first generator yet; use a `string`.)
 
 Two properties of every Gombit generator matter here:
 
@@ -449,8 +455,7 @@ curl -s -b jar.txt -X POST http://127.0.0.1:8080/api/v1/tasks \
 ```
 
 The response carries `created_at`/`updated_at`: the model-first response DTO is
-derived from the model, so `gorm.Model`'s readable timestamps come through
-automatically.
+derived from the model, so its readable timestamps come through automatically.
 
 Skip the token and you get a clean refusal rather than a mutation:
 
@@ -608,8 +613,10 @@ gombit build --embed
 
 `--embed` runs the frontend build and compiles the assets into the Go binary
 with `go:embed`, giving you **one artifact** that serves the API, the SPA, and
-the admin. Without the flag you get a plain backend build and deploy the
-frontend separately — both are supported.
+the admin. A bare `gombit build` without the flag is refused (exit 1): split
+deploy is the default, and embedding is opt-in. For a split deploy, build the
+API with `go build ./cmd/server` and build and host `frontend/` separately (a
+static host or CDN) — both are supported. See [build.md](/guide/deployment).
 
 Configuration is environment-driven and typed:
 
@@ -625,6 +632,18 @@ Before deploying, check the environment:
 ```bash
 gombit doctor
 ```
+
+and the schema chain — models, generated code, migrations, and the database
+you are about to deploy against — in one command:
+
+```bash
+gombit db check
+```
+
+It names the layer that is out of step (a migration not applied, a column
+someone added by hand, a model change no migration captures) with the command
+that fixes it, and exits non-zero, so CI can run it too (`--no-db` when the job
+has no database). See [migrations.md](/guide/migrations#checking-the-whole-chain).
 
 Production checklist:
 
@@ -643,7 +662,7 @@ one port with no `node` on the box.
 
 ## 12. Where next
 
-You've used every subsystem in v0.1. The reference docs go deeper:
+You've used the core subsystems. The reference docs go deeper:
 
 | Topic | Doc |
 | --- | --- |
@@ -651,6 +670,7 @@ You've used every subsystem in v0.1. The reference docs go deeper:
 | Configuration | [config.md](/guide/configuration) |
 | Lifecycle hooks | [lifecycle.md](/guide/lifecycle) |
 | Raw Gin routes | [router.md](/guide/routing) |
+| Field types and constraints | [fields.md](/guide/fields) |
 | DTO and validation conventions | [contract.md](/guide/contract) |
 | OpenAPI and `/docs` | [openapi.md](/guide/openapi) |
 | Client generation and drift | [client.md](/guide/typescript-client) |
@@ -659,13 +679,14 @@ You've used every subsystem in v0.1. The reference docs go deeper:
 | Bearer auth | [auth.md](/guide/authentication) |
 | Cookie auth and CSRF | [auth-cookie.md](/guide/authentication-cookie) |
 | Admin | [admin.md](/guide/admin) |
+| Background jobs | [jobs.md](/guide/jobs) |
 | Single-binary builds | [build.md](/guide/deployment) |
 | Everything | [docs index](https://github.com/gombit-dev/gombit/blob/main/docs/README.md) |
 
-Architecture rationale lives in the [ADRs](https://github.com/gombit-dev/gombit/tree/main/docs/adr). Scope and roadmap live in
-[GOMBIT_BUILD_PLAN.md](https://github.com/gombit-dev/gombit/blob/main/docs/GOMBIT_BUILD_PLAN.md) — including the post-v0.1
-batteries (jobs, events, scheduler, mail, storage, gRPC, multi-tenancy, i18n)
-that are deliberately **not** here yet.
+Architecture rationale lives in the [ADRs](https://github.com/gombit-dev/gombit/tree/main/docs/adr), and current work is tracked
+in [GitHub issues](https://github.com/gombit-dev/gombit/issues). The README's
+[roadmap](https://github.com/gombit-dev/gombit/blob/main/README.md#roadmap) lists the batteries (events, scheduler, mail,
+storage, gRPC, multi-tenancy, i18n) that are deliberately **not** here yet.
 
 Something wrong or unclear in this tutorial? That's a docs bug —
 [open an issue](https://github.com/gombit-dev/gombit/issues/new/choose).

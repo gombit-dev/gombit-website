@@ -87,8 +87,8 @@ overlapping field names do not leak onto the next model or row. Edit
 requires a GET of the current row (`actions.detail` + `can.view`); if
 detail is disabled, the edit screen is hidden rather than PATCHing empty
 boolean defaults (`false`) over stored `true` values.
-Field widgets cover the closed field types; `belongs_to` is a single-select
-picker (storing the foreign key); `has_many` is a read-only list of the related
+Field widgets cover the closed field types; `belongs_to` and `one_to_one` are a
+single-select picker (storing the foreign key); `has_many` is a read-only list of the related
 children; `many_to_many` is a
 multi-select. The relation pickers are searchable Autocompletes backed by the
 related model's list endpoint, showing its label field. When the related model
@@ -177,12 +177,37 @@ arbitrary Go types.
 - **`Field.Name`** is the JSON object key in meta and in data-plane rows.
   For v1, `Name` is also the GORM/SQL column unless `Field.Column` is set
   (use that when the Go exported name or GORM column differs).
+- **Constraints** — `minimum`, `maximum`, `max_length`, `pattern`, `default`,
+  `format`, and `choices` — appear in meta when set, and admin writes enforce
+  them. A field the registrar leaves empty copies them from the model:
+  `minimum`, `maximum`, `max_length`, `pattern`, and `default` from its
+  `validate` tag, `choices` (each enum's stored value and label) from that tag's
+  `enum=` and `label=` keys, and `format` from the separate `format` struct tag
+  (`format:"email"`), not from `validate`.
 - **`Options.PK`** is the JSON/field name of the primary key. Empty means
   derive the GORM primary key **at Register** and store it. The PK field
-  must appear in `Fields`.
+  must appear in `Fields`. An auto-increment primary key is read-only.
+  A manual primary key is required on create and cannot be changed on
+  update.
 - **Empty `Fields`** derives a default from the struct once, inside
   `Register`, via `admin.FieldsFrom(T)`. That helper may use `reflect`
   **only at registration time**. Do not call it from request handlers.
+  The derived list uses the same `gombit` policy as the generated API:
+  `gombit:"-"` is omitted, a response-only or `server` column is
+  read-only, and `gombit:"write"` is accepted on create but left out of
+  row JSON. A NOT NULL `server` column that the create body did not set
+  fails create instead of being stored as the zero value, including
+  `server` and `-,server`, which stay out of the field list. That check
+  runs only when `Fields` were derived. An explicit `Fields` list is the
+  handler's list, so Register does not reject a NOT NULL `gombit:"read"`
+  tag the caller did not ask to derive, and a column that list makes
+  writable is stored when the body sets it. The admin create form reports
+  a field error for any name that is not a mounted input. A write-only
+  boolean starts unchanged and can be set to true or false; only the
+  unchanged state is omitted. When the model declares that policy and
+  `Filter`, `Ordering`, or `Search` were left unset, those lists follow
+  the tag (`filterable`, `sortable`, `searchable`) rather than every
+  text column.
 - **`created_at` / `updated_at`** are implicit GORM timestamp columns.
   They may appear in `List` and `Ordering` even when omitted from
   `Fields`. When the model has those columns, list and detail row JSON
@@ -193,13 +218,15 @@ arbitrary Go types.
   stored keys, including custom keys, and echo them in meta.
 
 Closed field types: `string`, `text`, `integer`, `float`, `decimal`,
-`boolean`, `datetime`, `date`, `uuid`, `json`, `relation`.
+`boolean`, `datetime`, `date`, `time`, `duration`, `uuid`, `json`, `relation`. These strings are
+the admin projection of the shared vocabulary in [fields.md](/guide/fields).
 
-Relation `kind` is `belongs_to`, `has_many`, or `many_to_many`. **`belongs_to`**
-is stored as the foreign key on create/update; auto-derivation (`FieldsFrom`)
-renders the FK column as a relation field (target `slug` = the related table,
-label = the field name of its `name` column when present) so the SPA shows a
-picker instead of a
+Relation `kind` is `belongs_to`, `one_to_one`, `has_many`, or `many_to_many`.
+**`belongs_to`** and **`one_to_one`** are stored as the foreign key on
+create/update. `one_to_one` is the unique foreign key. Auto-derivation
+(`FieldsFrom`) renders the FK column as a relation field (target `slug` = the
+related table, label = the field name of its `name` column when present) so
+the SPA shows a picker instead of a
 bare integer, and the picker submits the selected primary key. **`has_many` is
 read-only**: auto-derivation emits it, and when it maps to a real GORM has_many
 association the list/detail responses preload it and return the related
@@ -247,7 +274,8 @@ registered). Raw `*gin.Engine` is **not** used for these endpoints. It
 appear in OpenAPI.
 
 **Deleting referenced records (referential integrity).** The admin data plane
-**hard-deletes** (`Unscoped`), so the database's own foreign keys enforce
+**hard-deletes** through `database.Delete`
+([ADR-019](https://github.com/gombit-dev/gombit/blob/main/docs/adr/019-hard-delete-semantics.md)), so the database's own foreign keys enforce
 referential integrity in one statement (#220). A model embedding `gorm.Model`
 would otherwise be *soft*-deleted — `deleted_at` is set with no physical
 `DELETE` — and the database's `ON DELETE RESTRICT`/`NO ACTION` constraints would
@@ -262,7 +290,9 @@ never fire, leaving a live child row pointing at a parent the API now reports as
 
 Because the delete is physical, the admin does not keep soft-deleted rows around
 (it has never exposed a restore/trash path). This is the framework-owned admin
-surface; generated per-resource handlers are thin and user-owned.
+surface; generated per-resource handlers live in generator-owned `*.gen.go`
+files and are customized through hooks, not by editing them
+([ADR-016](https://github.com/gombit-dev/gombit/blob/main/docs/adr/016-model-first-resource-generation.md)).
 
 List query parameters:
 
@@ -305,5 +335,5 @@ superuser with `auth.Service.CreateSuperuser` (the same path as
 - Full users/groups management screens in the admin SPA
 - `--admin` generator / golden template changes / copying the SPA into
   generated `frontend/`
-- M6 batteries (jobs, events, scheduler, mail, storage, gRPC, multi-tenancy, i18n)
+- M6 batteries (events, scheduler, mail, storage, gRPC, multi-tenancy, i18n)
 - `localStorage` tokens

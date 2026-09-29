@@ -53,8 +53,9 @@ gombit build --embed --out bin/server
 gombit build --embed --dry-run
 ```
 
-A bare `gombit build` without `--embed` is refused. That is deliberate: v0.1
-must not silently change the default production path to embed.
+A bare `gombit build` without `--embed` is refused (exit 1). That is
+deliberate: the build must not silently change the default production path to
+embed. For a split deploy, build the API with `go build ./cmd/server`.
 
 The compiled binary serves:
 
@@ -74,7 +75,7 @@ only mounts in cookie mode. See [admin.md](/guide/admin).
 ## SPA Content-Security-Policy
 
 The security-headers middleware scopes its policy by response kind (see
-[security.md](https://github.com/gombit-dev/gombit/blob/main/docs/security.md)). JSON API responses, probes, and `/metrics` get the
+[security.md](/guide/security)). JSON API responses, probes, and `/metrics` get the
 strict API policy `default-src 'none'; frame-ancestors 'none'`. When the
 embedded frontend serves `index.html` (GET `/` and SPA fallback), the response
 is promoted to the browser policy so `--ui mui` + `--embed` can load Roboto and
@@ -91,7 +92,7 @@ Emotion-injected `<style>` tags:
 
 plus `Referrer-Policy` and `X-Frame-Options: DENY`. `/docs` (when enabled)
 keeps Huma's own Swagger UI CSP and additionally gets the browser hardening
-headers. See [security.md](https://github.com/gombit-dev/gombit/blob/main/docs/security.md) for the full per-response-kind table.
+headers. See [security.md](/guide/security) for the full per-response-kind table.
 
 ## Scaffold hook
 

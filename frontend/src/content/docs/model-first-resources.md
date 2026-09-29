@@ -41,12 +41,18 @@ hook refers to are produced by generation:
 
    ```go
    type Book struct {
-       gorm.Model
-       Title    string `gorm:"not null" gombit:"read,write,searchable,sortable"`
-       TenantID uint   `gorm:"not null" gombit:"read,server"` // set by a hook, not the client
-       Secret   string `gombit:"-"`                            // never in the API
+       ID        uint `gorm:"primaryKey" json:"id"`
+       CreatedAt time.Time
+       UpdatedAt time.Time
+       Title     string `gorm:"not null" gombit:"read,write,searchable,sortable"`
+       TenantID  uint   `gorm:"not null" gombit:"read,server"` // set by a hook, not the client
+       Secret    string `gombit:"-"`                            // never in the API
    }
    ```
+
+   This is the shape `gombit make resource` scaffolds: no `gorm.Model` and no
+   soft-delete `DeletedAt`, because deletion is physical
+   ([ADR-019](https://github.com/gombit-dev/gombit/blob/main/docs/adr/019-hard-delete-semantics.md)).
 
    - `read`/`write` — in the response / accepted on create (untagged columns
      default to read+write).
@@ -55,8 +61,10 @@ hook refers to are produced by generation:
    - `filterable` / `sortable` / `searchable` / `aggregatable` — the list-query
      surface (each requires the field to be readable).
 
-   A field marked `enum(...)` under the old CLI grammar has no model-first
-   representation yet; use a plain `string` column for now.
+   Constraints and enum values live in the model's `validate` tag (for example
+   `validate:"enum=a,b"`, with `label=A,B` for display labels, or `min=0;max=150`).
+   `gombit generate` reads that tag and emits the Huma `enum`, bounds, and
+   patterns on the request; see [fields.md](/guide/fields#constraints).
 
 2. **Mark the package and remove the old plumbing.** Add the marker and delete the
    human-owned handler/routes so the generated ones can take over. (`main.go` still
