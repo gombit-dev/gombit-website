@@ -105,9 +105,9 @@ function repoPath(target, pageDir = "") {
   for (const part of parts) {
     if (part === "" || part === ".") continue;
     if (part === "..") {
+      // Refuse, rather than publish a plausible wrong path.
       if (stack.length === 0) {
-        console.warn(`sync-docs: link ${target} (from docs/${pageDir}) climbs above the repo root`);
-        continue;
+        throw new Error(`sync-docs: link ${target} (from docs/${pageDir}) climbs above the repo root`);
       }
       stack.pop();
     } else stack.push(part);
