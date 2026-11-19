@@ -35,6 +35,7 @@ const GROUPS = [
       { slug: "routing", source: "router", title: "Routing" },
       { slug: "logging", source: "logging", title: "Logging" },
       { slug: "caching", source: "cache", title: "Caching" },
+      { slug: "storage", source: "storage", title: "Object storage" },
       { slug: "jobs", source: "jobs", title: "Background jobs" },
       { slug: "security", source: "security", title: "Security headers" },
     ],
@@ -69,7 +70,7 @@ const GROUPS = [
   {
     title: "Auth & admin",
     pages: [
-      { slug: "authentication", source: "auth", title: "Authentication (JWT)" },
+      { slug: "authentication", source: "auth", title: "Authentication & accounts" },
       { slug: "authentication-cookie", source: "auth-cookie", title: "Cookie auth & CSRF" },
       { slug: "admin", source: "admin", title: "Admin" },
     ],
@@ -83,6 +84,9 @@ const GROUPS = [
   {
     title: "Upgrading",
     pages: [
+      { slug: "upgrade", source: "upgrade", title: "Upgrading Gombit" },
+      { slug: "upgrade-notes", source: "upgrade-notes", title: "Upgrade notes" },
+      { slug: "compatibility", source: "compatibility", title: "Compatibility policy" },
       {
         slug: "model-first-resources",
         source: "migration-model-first-resources",
@@ -126,6 +130,22 @@ function rewriteLink(target, pageDir = "") {
   return `${REPO}/${kind}/main/${rp}${suffix}`;
 }
 
+// Rewrite markdown link targets, leaving code alone: a fenced block or an
+// inline code span can hold `](...)` that is not a link (`db.F[T](x)`).
+// Alternation order matters: a fence or code span is consumed whole before
+// the link pattern can match inside it. As in CommonMark, a fence may be
+// indented (list items), a code span closes on a backtick run of exactly its
+// opener's length, and it never crosses a blank line — so a stray backtick
+// stays literal instead of swallowing the links after it.
+const CODE_OR_LINK =
+  /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$|(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\2(?!`)|\]\(([^)]+)\)/gm;
+
+function rewriteLinks(markdown, rewrite) {
+  return markdown.replace(CODE_OR_LINK, (match, _fence, _ticks, target) =>
+    target === undefined ? match : `](${rewrite(target)})`,
+  );
+}
+
 function sync() {
   if (!existsSync(docsSrc)) {
     throw new Error(
@@ -139,7 +159,7 @@ function sync() {
   for (const page of pages) {
     const raw = readFileSync(resolve(docsSrc, `${page.source}.md`), "utf-8");
     const pageDir = page.source.includes("/") ? page.source.slice(0, page.source.lastIndexOf("/")) : "";
-    const rewritten = raw.replace(/\]\(([^)]+)\)/g, (_m, target) => `](${rewriteLink(target, pageDir)})`);
+    const rewritten = rewriteLinks(raw, (target) => rewriteLink(target, pageDir));
     writeFileSync(resolve(outDir, `${page.slug}.md`), rewritten);
   }
 
@@ -183,7 +203,9 @@ function syncBenchmarks() {
   const block = readme
     .slice(start + startMark.length, end)
     .trim()
-    .replace(/\]\(([^)]+)\)/g, (_m, target) => `](${rewriteReadmeLink(target)})`);
+    .replace(CODE_OR_LINK, (match, _fence, _ticks, target) =>
+      target === undefined ? match : `](${rewriteReadmeLink(target)})`,
+    );
   writeFileSync(resolve(root, "src/content/benchmarks.md"), block + "\n");
   console.log("sync-docs: wrote benchmarks.md from README");
 }

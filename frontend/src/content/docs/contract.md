@@ -108,9 +108,13 @@ gombit make resource Article \
 ```
 
 The generated handler applies filters and `?search=` before the `COUNT`, so
-`meta.total` reflects the filtered set; `?ordering=` replaces the fixed `id`
-order (`id` stays the default when `?ordering=` is absent) and is validated
-against the declared sortable set. An undeclared ordering field or an
+`meta.total` reflects the filtered set; the list is ordered by the model's
+primary-key column (`id` for the scaffolded model) when `?ordering=` is
+absent, and by the requested field, then the primary key in the same
+direction as the tiebreaker (`?ordering=-price` is `price DESC, id DESC`),
+when it is present, so pages neither repeat nor skip rows with equal sort
+keys. One direction means one index on `(price, id)` serves both `price` and
+`-price`. `?ordering=` is validated against the declared sortable set. An undeclared ordering field or an
 uncoercible filter value returns a D10 `validation_error` (422). The shared
 primitives live in `database` (`FilterEq`, `Search`, `Ordering` / `ParseOrdering`)
 and are the same behavior — and now the same code — the admin data plane applies.
@@ -206,6 +210,11 @@ Conventions:
 - Put validation metadata on body fields (`minLength`, `maxLength`, `format`,
   `enum`, `required`, and the other Huma tags).
 - Document fields with `doc` / `example` so they appear in OpenAPI.
+- A storage-backed field (`types.File`, `types.Image`) is written as its
+  object key, taken from an upload grant. It reads back as a file object
+  (`key`, `filename`, `size`, `content_type`, `url`, `missing`). The
+  generated handler adds one upload-grant operation per field; see
+  [fields.md § Storage-backed fields](/guide/fields#storage-backed-fields).
 
 ## Validation → D10 `fields`
 
@@ -235,8 +244,15 @@ Huma `ErrorDetail.Location` values:
 | `query.limit` | `query.limit` |
 | `path.widget-id` | `path.widget-id` |
 
-When Huma omits a location for a missing required property, Gombit infers the
-field name from messages like `expected required property name to be present`.
+A missing property — required, or pulled in by `dependentRequired` — is reported
+by Huma against the object that lacks it, and the property is named in the
+message instead of the location, so Gombit appends it whatever kind of location
+the object sits at: the top-level body yields just the property (`title`), a
+nested body location grows into a field path (`address.city`, `lines[1].sku`),
+a top-level array body item keys its item (`body[1]`) and grows the same way
+(`body[1].sku`), and a deepObject query param grows its object key
+(`query.filter.kind`) — the same shape as every other nested error, and the
+path a form's field binding uses.
 
 `request_id` comes from the runtime request-ID middleware
 (`X-Request-Id` / `framework.GetRequestIDFromContext`).
@@ -276,11 +292,14 @@ plane) go through `database.MapLoadError` / `database.MapPersistError`:
 | --- | --- | --- |
 | Missing row (`gorm.ErrRecordNotFound`) | `not_found` | 404 |
 | Unique / duplicate key | `conflict` | 409 |
+| A value the database refuses as data (out of range, too long, a NUL byte; [`docs/database.md`](/guide/database#error-mapping)) | `validation_error` | 422 |
 | Any other database error | `internal` | 500 |
 
 `database.IsUniqueViolation` is the portable detector (`gorm.ErrDuplicatedKey`
-from GORM's `TranslateError`, which `database.Open` enables, or a driver string
-containing `unique` / `duplicate` as a fallback). Auth registration uses the same helper
+from GORM's `TranslateError`, which `database.Open` enables, or the driver's
+unique-violation code; a driver's fixed unique-violation wording only for an
+error without a driver code, never the bare words `unique` / `duplicate`,
+which a column name can hold). Auth registration uses the same helper
 and still returns `conflict` for a taken email. Do not map every `First()`
 error to 404 or every `Create()` error to 500.
 
@@ -292,8 +311,13 @@ over 8MiB (see [`docs/router.md`](/guide/routing)). The opt-in XSS sanitizer
 cap, so it never produces its own 413; cookie CSRF uses `Authorization` (403). An unsupported method on a known
 route yields `contract.MethodNotAllowed` (`error.code` `method_not_allowed`,
 HTTP 405) with an `Allow` header listing the methods the path supports — the
-router distinguishes this from a genuinely unknown path (404). Do not treat
-413 or 405 as a handler-level §41 category or add them to the table above.
+router distinguishes this from a genuinely unknown path. That unknown path
+gets the D10 `not_found` envelope (HTTP 404), with or without an embedded
+frontend (whose SPA fallback answers API and other reserved paths the same
+way), and a handler panic recovered by the runtime stack gets the D10
+`internal` envelope (HTTP 500), unless the handler had already started its
+response. Both carry `request_id`. Do not treat 413 or 405 as a handler-level
+§41 category or add them to the table above.
 
 Response bodies carry only the D10 shape (`{data, meta?}` / `{error}`). Huma's
 `$schema` link property is disabled at the adapter, so neither responses nor the
@@ -309,6 +333,11 @@ the raw driver string.
 
 The `validation_error` code is preserved from M3-1 / D10 (not renamed to
 `validation`).
+
+Storage failures map the same way: `storage.MapError` turns a driver error
+into its category (`not_found`, `validation_error`, `conflict`,
+`dependency_unavailable`, or `internal` for a bug), so a handler returns it
+as is; see [storage.md § Errors](/guide/storage#errors).
 
 ## OpenAPI
 

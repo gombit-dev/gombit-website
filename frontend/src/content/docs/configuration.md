@@ -57,6 +57,19 @@ recognizes:
 | `GOMBIT_JOBS_DRIVER` | `Config.Jobs.Driver` | `sync` |
 | `GOMBIT_JOBS_QUEUE` | `Config.Jobs.Queue` | `default` |
 | `GOMBIT_JOBS_NAMESPACE` | `Config.Jobs.Namespace` | derived from app/environment |
+| `GOMBIT_STORAGE_DRIVER` | `Config.Storage.Driver` | `local` |
+| `GOMBIT_STORAGE_LOCAL_ROOT` | `Config.Storage.Local.Root` | `storage` |
+| `GOMBIT_STORAGE_S3_BUCKET` | `Config.Storage.S3.Bucket` | empty (required with `s3`) |
+| `GOMBIT_STORAGE_S3_REGION` | `Config.Storage.S3.Region` | `us-east-1` |
+| `GOMBIT_STORAGE_S3_ENDPOINT` | `Config.Storage.S3.Endpoint` | empty (AWS) |
+| `GOMBIT_STORAGE_S3_PREFIX` | `Config.Storage.S3.Prefix` | empty |
+| `GOMBIT_STORAGE_S3_ACCESS_KEY_ID` | `Config.Storage.S3.AccessKeyID` | empty (default credential chain) |
+| `GOMBIT_STORAGE_S3_SECRET_ACCESS_KEY` | `Config.Storage.S3.SecretAccessKey` | empty; redacted |
+| `GOMBIT_STORAGE_S3_FORCE_PATH_STYLE` | `Config.Storage.S3.ForcePathStyle` | `false` |
+| `GOMBIT_STORAGE_S3_PUBLIC_URL` | `Config.Storage.S3.PublicURL` | empty (public objects have no URL) |
+| `GOMBIT_STORAGE_PUBLIC_PREFIX` | `Config.Storage.PublicPrefix` | `public/` (empty: none public) |
+| `GOMBIT_STORAGE_LOCAL_URL` | `Config.Storage.Local.URL` | `/_storage` (empty: no URLs) |
+| `GOMBIT_STORAGE_URL_SECRET` | `Config.Storage.URLSecret` | empty (derived from `GOMBIT_JWT_SECRET`); redacted |
 | `GOMBIT_REDIS_ADDR` | `Config.Cache.Redis.Addr` | `127.0.0.1:6379` |
 | `GOMBIT_REDIS_USERNAME` | `Config.Cache.Redis.Username` | empty |
 | `GOMBIT_REDIS_PASSWORD` | `Config.Cache.Redis.Password` | empty |
@@ -69,12 +82,40 @@ recognizes:
 | `GOMBIT_LOG_LEVEL` | `Config.Logging.Level` | `info` |
 | `GOMBIT_LOG_SINK` | `Config.Logging.Sink` | `stderr` |
 | `GOMBIT_JWT_SECRET` | `Config.Auth.JWTSecret` | empty (auth unmounted) |
-| `GOMBIT_JWT_ACCESS_TTL` | `Config.Auth.AccessTokenTTL` | `15m` |
-| `GOMBIT_JWT_REFRESH_TTL` | `Config.Auth.RefreshTokenTTL` | `168h` |
+| `GOMBIT_JWT_ACCESS_TTL` | `Config.Auth.AccessTokenTTL` | `15m`; with auth on, at most `GOMBIT_JWT_REFRESH_TTL` |
+| `GOMBIT_JWT_REFRESH_TTL` | `Config.Auth.RefreshTokenTTL` | `168h`; with auth on, at least `GOMBIT_JWT_ACCESS_TTL` (validation fails otherwise) |
 | `GOMBIT_AUTH_MODE` | `Config.Auth.Mode` | `jwt` |
 | `GOMBIT_COOKIE_SECURE` | `Config.Auth.CookieSecure` | `true` |
 | `GOMBIT_COOKIE_SAMESITE` | `Config.Auth.CookieSameSite` | `lax` |
+| `GOMBIT_AUTH_EMAIL_VERIFICATION_TTL` | `Config.Auth.EmailVerificationTTL` | `24h` |
+| `GOMBIT_AUTH_EMAIL_VERIFICATION_URL` | `Config.Auth.EmailVerificationURL` | empty; when set, must contain `{token}` |
+| `GOMBIT_AUTH_EMAIL_CHANGE_URL` | `Config.Auth.EmailChangeURL` | empty; when set, must contain `{token}` |
+| `GOMBIT_AUTH_PASSWORD_RESET_TTL` | `Config.Auth.PasswordResetTTL` | `1h` |
+| `GOMBIT_AUTH_PASSWORD_RESET_URL` | `Config.Auth.PasswordResetURL` | empty; when set, must contain `{token}` |
+| `GOMBIT_AUTH_PASSWORD_RESET_KEEP_SESSIONS` | `Config.Auth.PasswordResetKeepSessions` | `false`: a reset revokes every session of the user |
+| `GOMBIT_AUTH_REFRESH_REUSE_GRACE` | `Config.Auth.RefreshReuseGrace` | `30s`: a rotated refresh token presented again within it, its successor still live, is a 401 that revokes nothing; `0` is strict reuse detection; negative is refused |
+| `GOMBIT_AUTH_THROTTLE_DISABLED` | `Config.Auth.ThrottleDisabled` | `false`: the credential endpoints are throttled ([auth.md](/guide/authentication#abuse-protection)); `true` keeps `MFAPerUser`, which bounds guessing a multi-factor code |
+| `GOMBIT_AUTH_MFA_KEY` | `Config.Auth.MFAKey` | empty: the MFA keys derive from `GOMBIT_JWT_SECRET`; at least 32 characters when set ([auth.md](/guide/authentication#multi-factor-authentication)) |
 | `GOMBIT_SECURITY_SANITIZE_INPUT` | `Config.Security.SanitizeInput` | `false` (opt-in) |
+
+`.env` is read whole, lines of any length, and a file that exists but cannot be
+read fails `Load` rather than applying part of it. A line assigns as written:
+`KEY=value`, trimmed, with a UTF-8 byte order mark dropped from the start of the
+file (the only place one can be) and `#` lines skipped; one layer of matching
+quotes is stripped from the value, and a `#` with whitespace before it — outside
+those quotes — starts a comment that is dropped, so `KEY=abc # note` assigns
+`abc` while `KEY=#fff` keeps `#fff`, which is what `set -a; . ./.env` gives for
+the same two lines. `export KEY=value` assigns `export KEY`, not `KEY`.
+`config.DotEnvKeys` (a file's content) and `config.DotEnvKey` (a line) expose
+that traversal and grammar to tooling, without values.
+
+`config.Variables()` lists these variables in code: each one's name,
+whether its value is a secret (a credential, or a DSN that may embed one),
+and its development, test and production defaults. It is the configuration
+surface the upgrade tooling compares across releases. A test holds it to
+every variable `LoadFromEnv` reads, and another fails when a variable is
+removed or a default changes without the compatibility manifest declaring
+it (see [upgrade.md](/guide/upgrade#configuration-changes)).
 
 `GOMBIT_API_PREFIX` is a live setting (D8). Go routes, Huma, and the admin
 SPA honor it. The generated application SPA honors it when the prefix is
@@ -85,6 +126,34 @@ the placeholder alone falls back to `/api/v1`. `gombit client generate`
 normalizes OpenAPI path keys to `/api/v1` so page source does not need
 regenerating. See [frontend.md](/guide/frontend#talking-to-the-api).
 
+`Load` puts the prefix in one canonical form before anything reads it, because
+generated resources and the OpenAPI document concatenate it with a route while
+Gin builds its route with `path.Join`, and the client is generated from that
+document: a trailing `/` is dropped, so `GOMBIT_API_PREFIX=/svc/` serves and
+advertises `/svc/widgets`. A prefix with no canonical form is a validation error
+naming `API.Prefix` — `api` (no leading `/`), `/` alone, an empty segment
+(`/svc//api`), a `.` or `..` segment (`/api/../v1`: Gin registers the collapsed
+`/v1/widgets` while the document advertises `/api/../v1/widgets`), or a character
+that does not survive the two agreeing — `%`, `?` and `#` (the document's path key
+is then no URL a client can parse, and a query or fragment never reaches the
+path), `{`, `}`, `:` and `*` (Gin's parameter syntax, so the route answers paths
+the document never lists; a `*` or `\` mid-path panics at registration), space and
+the other US-ASCII characters RFC 3986 keeps out of a URI (`" < > [ ] | ^ \``),
+and control characters. Those are refused by policy: RFC 3986 does not admit
+non-ASCII either, but the rule takes its accepted set from RFC 3987's IRI path
+segment (`ipchar`) and admits it percent-encoded. Bytes that are not valid
+UTF-8 are refused too: Gin
+registers the prefix's raw bytes, while the document is written by `encoding/json`,
+which replaces each undecodable byte with `U+FFFD`, so `/api/<ff>/widgets` answers
+while the `/api/<U+FFFD>/widgets` it advertises does not. The accepted form is `/`
+followed by one or more segments of the characters an IRI path segment holds — `A-Z`,
+`a-z`, `0-9`, `-`, `.`, `_`, `~`, the sub-delimiters `! $ & ' ( ) + , ; =`, `@`, and
+any non-ASCII rune of a value that is valid UTF-8, which a client sends
+percent-encoded and Gin matches once decoded — separated by a single `/`, none of
+them `.` or `..`. Set `Config.API.Prefix` in code to a value that is
+not already in that form — `/svc/`, say — and `Validate` rejects it rather than
+start an app whose document no route answers.
+
 `GOMBIT_ENV` accepts the exact lowercase values `development`, `test`, and
 `production`.
 `GOMBIT_DATABASE_DRIVER` accepts `sqlite`, `postgres`, and `mysql`.
@@ -92,12 +161,18 @@ regenerating. See [frontend.md](/guide/frontend#talking-to-the-api).
 `GOMBIT_JOBS_DRIVER` accepts `sync`, `memory`, and `redis`; the `redis` driver
 connects with the shared `GOMBIT_REDIS_*` settings, which are then validated
 even when the cache does not use Redis. See [jobs.md](/guide/jobs#drivers).
+`GOMBIT_STORAGE_DRIVER` accepts `local`, `memory`, and `s3` (which needs a
+bucket; set both S3 keys or neither). The local driver keeps
+files under `GOMBIT_STORAGE_LOCAL_ROOT` (relative to the working directory),
+which is created on the first write. See [storage.md](/guide/storage#drivers).
 When `GOMBIT_CACHE_NAMESPACE` is unset, the namespace is derived from the
 normalized app name and environment, such as `gombit:development`.
 `GOMBIT_HTTP_TRUSTED_PROXIES` is a comma-separated list of IPs or CIDRs passed
 to Gin's trusted-proxy configuration. When unset, forwarded-client IP headers
-are ignored. Production config rejects values that trust all proxies, such as
-`0.0.0.0/0`.
+are ignored. Production config rejects a single CIDR with a zero-length
+prefix (including alternate spellings such as `10.0.0.0/0`) and combinations
+of CIDRs that together cover every IPv4 or IPv6 peer. Use only the addresses
+of proxies you control; an overly broad range lets clients spoof forwarded IPs.
 `GOMBIT_HTTP_REQUEST_TIMEOUT` uses Go duration syntax such as `30s` or `2m`.
 It is opt-in (issue #270 / PERF-12): the default `0` imposes no cooperative
 per-handler context deadline. The deadline is applied inside the

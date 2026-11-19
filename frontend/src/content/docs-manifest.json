@@ -44,6 +44,10 @@
         "title": "Caching"
       },
       {
+        "slug": "storage",
+        "title": "Object storage"
+      },
+      {
         "slug": "jobs",
         "title": "Background jobs"
       },
@@ -121,7 +125,7 @@
     "pages": [
       {
         "slug": "authentication",
-        "title": "Authentication (JWT)"
+        "title": "Authentication & accounts"
       },
       {
         "slug": "authentication-cookie",
@@ -145,6 +149,18 @@
   {
     "title": "Upgrading",
     "pages": [
+      {
+        "slug": "upgrade",
+        "title": "Upgrading Gombit"
+      },
+      {
+        "slug": "upgrade-notes",
+        "title": "Upgrade notes"
+      },
+      {
+        "slug": "compatibility",
+        "title": "Compatibility policy"
+      },
       {
         "slug": "model-first-resources",
         "title": "Model-first resources (v0.2)"
