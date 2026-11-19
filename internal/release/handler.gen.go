@@ -62,7 +62,10 @@ func (h *Handler) list(ctx context.Context, input *listReleasesInput) (*listRele
 	if err != nil {
 		return nil, err
 	}
-	q = database.Search(q, []string{"tag", "name"}, input.Search)
+	q, err = database.Search(ctx, q, []string{"tag", "name"}, input.Search)
+	if err != nil {
+		return nil, err
+	}
 	var total int64
 	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, contract.WithContext(ctx, contract.Internal("list releases"))
@@ -88,7 +91,7 @@ func (h *Handler) list(ctx context.Context, input *listReleasesInput) (*listRele
 }
 
 func (h *Handler) get(ctx context.Context, input *getReleaseInput) (*getReleaseOutput, error) {
-	id, err := strconv.ParseUint(input.ID, 10, 64)
+	id, err := strconv.ParseUint(input.ID, 10, 63)
 	if err != nil {
 		return nil, contract.WithContext(ctx, contract.NotFound("release not found"))
 	}
@@ -109,6 +112,10 @@ func (h *Handler) create(ctx context.Context, input *createReleaseInput) (*creat
 	}
 	if err := h.DB.WithContext(ctx).Create(&row).Error; err != nil {
 		return nil, database.MapPersistError(ctx, err, "resource already exists", "create release")
+	}
+	// Respond with the stored row, as get would return it.
+	if err := h.DB.WithContext(ctx).First(&row, row.Model.ID).Error; err != nil {
+		return nil, database.MapLoadError(ctx, err, "release not found", "reload created release")
 	}
 	return &createReleaseOutput{Body: contract.Data[releaseData]{Data: toReleaseData(row)}}, nil
 }
