@@ -59,6 +59,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/resources/{slug}/uploads/{field}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grant an upload for a file field */
+        post: operations["admin-resource-upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/resources/{slug}/{id}": {
         parameters: {
             query?: never;
@@ -95,6 +112,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/email/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask to change the signed-in user's email
+         * @description Requires the current password (a wrong one is a 422 on current_password). Mails a confirmation link to the new address; the account's email changes only once it is confirmed. 409 when another account has the address; at most one message a minute, and too many wrong current passwords (429 with Retry-After either way).
+         */
+        post: operations["auth-request-email-change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email/change/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm an email change with the token mailed to the new address
+         * @description Consumes the token: it works once, and only while the account's email is the one the change was asked from. The new address becomes the account's email, verified. An unknown, expired, used or superseded token is a 422 on token; an address another account took meanwhile is a 409. Too many invalid tokens from one client address is a 429 (Retry-After).
+         */
+        post: operations["auth-confirm-email-change"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -104,7 +161,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Log in and start an HttpOnly cookie session */
+        /**
+         * Log in and start an HttpOnly cookie session
+         * @description Too many failed attempts for the email from this client address, from this address, or for the email is a 429 (Retry-After), the same whether or not the email is an account.
+         */
         post: operations["login"];
         delete?: never;
         options?: never;
@@ -123,6 +183,163 @@ export interface paths {
         put?: never;
         /** Revoke the current session and clear cookies */
         post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user's multi-factor authentication */
+        get: operations["auth-mfa-status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn multi-factor authentication off
+         * @description Requires the current password and a code from the authenticator (or a recovery code): a stolen session and password alone do not remove the second factor. 409 while MFA is not enabled.
+         */
+        post: operations["auth-mfa-disable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the recovery codes
+         * @description Requires the current password and a code from the authenticator (or a recovery code): new codes are a second factor, so a stolen session and password alone do not mint them. The old recovery codes stop working; the new ones are shown this once. 409 while MFA is not enabled.
+         */
+        post: operations["auth-mfa-recovery-codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Begin enrolling a TOTP authenticator
+         * @description Requires the current password (422 on current_password). Returns the secret and otpauth:// URI for an authenticator app; nothing changes for the login until POST /auth/mfa/totp/confirm gets a code from it. A new enrollment replaces one pending; 409 while MFA is enabled.
+         */
+        post: operations["auth-mfa-totp-enroll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/totp/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm a TOTP enrollment and enable MFA
+         * @description A code from the authenticator just set up (mfa_code) enables multi-factor authentication: from then on a login needs mfa_code. Every other session of the user ends (they were started on the password alone); this one stays. Returns the recovery codes, shown this once. A wrong code is a 422 on mfa_code; 409 with no enrollment pending.
+         */
+        post: operations["auth-mfa-totp-confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the signed-in user's password
+         * @description Requires the current password (a wrong one is a 422 on current_password). Signs out every other session of the user unless keep_other_sessions; this session stays. Outstanding password reset links stop working. Too many wrong current passwords is a 429 (Retry-After).
+         */
+        post: operations["auth-change-password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mail a password reset link to an account
+         * @description 202 with the same body whether or not the email is an account, answered before that is known: the message is sent in the background. 503 (Retry-After) when the server is taking no more reset requests for now, decided from request arrivals alone, also before the lookup. 429 (Retry-After) when this client address asked too often, also before the lookup. At most one message a minute per account; the link works once, until it expires.
+         */
+        post: operations["auth-request-password-reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password with the token from a reset message
+         * @description Consumes the token: it works once. Revokes every session of the user unless the app keeps them. An unknown, expired, used or superseded token, or one sent to an address the user no longer has, is a 422 on token. Too many invalid tokens from one client address is a 429 (Retry-After).
+         */
+        post: operations["auth-reset-password"];
         delete?: never;
         options?: never;
         head?: never;
@@ -155,8 +372,149 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register a user */
+        /**
+         * Register a user
+         * @description Too many registrations from this client address is a 429 (Retry-After), before the password is hashed.
+         */
         post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the user's active sessions */
+        get: operations["auth-list-sessions"];
+        put?: never;
+        post?: never;
+        /** Revoke every other session, or every session */
+        delete: operations["auth-revoke-sessions"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke one session
+         * @description Returns 404 when the id names no active session, including one that refreshed after it was listed; list again and retry.
+         */
+        delete: operations["auth-revoke-session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/users/{id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable a user's account
+         * @description Requires the auth.users.manage permission (a superuser has it), and a superuser to disable a superuser; no one disables their own account (409). Revokes every session of the user and voids their links, in one transaction; from then on the account cannot sign in, and no token issued to it works. Idempotent.
+         */
+        post: operations["auth-disable-user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/users/{id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable a disabled user's account
+         * @description Requires the auth.users.manage permission (a superuser has it), and a superuser to enable a superuser. The user may sign in again; the sessions revoked when the account was disabled stay revoked. Idempotent.
+         */
+        post: operations["auth-enable-user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/users/{id}/mfa/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove a user's multi-factor authentication
+         * @description For a user who lost their authenticator and recovery codes; every session of the user ends with it (the lost device may hold one). Requires the auth.users.manage permission (a superuser has it), and a superuser to reset a superuser; an account turns its own off with POST /auth/mfa/disable (409). Idempotent.
+         */
+        post: operations["auth-mfa-reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify the user's email address with the token mailed to it
+         * @description Consumes the token: it works once. An unknown, expired, used or superseded token, or one sent to an address the user no longer has, is a 422 on token. Too many invalid tokens from one client address is a 429 (Retry-After).
+         */
+        post: operations["auth-verify-email"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a new email verification message
+         * @description Once delivered, the new token supersedes the earlier ones: only the latest works. At most one message a minute (429 with Retry-After); 409 when the email is already verified.
+         */
+        post: operations["auth-resend-email-verification"];
         delete?: never;
         options?: never;
         head?: never;
@@ -280,9 +638,189 @@ export interface components {
             list: boolean;
             update: boolean;
         };
+        AuthEmailChangeBody: {
+            /** @description The password the user has now */
+            current_password: string;
+            /**
+             * Format: email
+             * @description The address to change the account's email to
+             * @example ada@new.example.com
+             */
+            new_email: string;
+        };
+        AuthEmailChangeConfirmBody: {
+            /**
+             * @description The token from the confirmation message
+             * @example 9f2c...
+             */
+            token: string;
+        };
+        AuthEmailChangeRequested: {
+            /**
+             * @description True when the confirmation link was mailed to the new address
+             * @example true
+             */
+            sent: boolean;
+        };
+        AuthMFAProofBody: {
+            /** @description The password the user has now */
+            current_password: string;
+            /** @description A code from the authenticator, or a recovery code */
+            mfa_code: string;
+        };
+        AuthMFAStatus: {
+            /** @description True when a login needs a multi-factor code */
+            enabled: boolean;
+            /** @description True while an enrollment awaits its confirming code */
+            pending_enrollment: boolean;
+            /**
+             * Format: int64
+             * @description Unused recovery codes, while enabled
+             */
+            recovery_codes_remaining: number;
+        };
         AuthMeta: {
             bootstrap: string;
             mode: string;
+        };
+        AuthPasswordChangeBody: {
+            /** @description The password the user has now */
+            current_password: string;
+            /** @description Keep the user's other sessions signed in (default: they are signed out) */
+            keep_other_sessions?: boolean;
+            /**
+             * @description The new password
+             * @example correct-horse-2
+             */
+            new_password: string;
+        };
+        AuthPasswordChangeResult: {
+            /** @example true */
+            ok: boolean;
+            /**
+             * @description True when every other session of the user was signed out; this one stays
+             * @example true
+             */
+            other_sessions_revoked: boolean;
+        };
+        AuthPasswordForgotBody: {
+            /**
+             * Format: email
+             * @description The account's email
+             * @example ada@example.com
+             */
+            email: string;
+        };
+        AuthPasswordResetBody: {
+            /**
+             * @description The new password
+             * @example correct-horse
+             */
+            password: string;
+            /**
+             * @description The token from the password reset message
+             * @example 9f2c...
+             */
+            token: string;
+        };
+        AuthPasswordResetRequested: {
+            /**
+             * @description Always true: the answer does not say whether the email is an account
+             * @example true
+             */
+            accepted: boolean;
+        };
+        AuthPasswordResetResult: {
+            /** @example true */
+            ok: boolean;
+            /**
+             * @description True when every session of the user was revoked: sign in again with the new password
+             * @example true
+             */
+            sessions_revoked: boolean;
+        };
+        AuthRecoveryCodes: {
+            /** @description Single-use recovery codes, shown this once: each signs in once in place of an authenticator code */
+            recovery_codes: string[] | null;
+        };
+        AuthRevokeResult: {
+            /**
+             * @description True when the sessions were revoked
+             * @example true
+             */
+            ok: boolean;
+        };
+        AuthSession: {
+            /**
+             * @description True for the session that made this request
+             * @example true
+             */
+            current: boolean;
+            /**
+             * Format: date-time
+             * @description When the session ends unless it refreshes first
+             */
+            expires_at: string;
+            /**
+             * @description Opaque session identifier. It changes every time the session refreshes, so list again before revoking.
+             * @example 3f6c2a9e0b7d41c58e2f6a1d9c4b7e20
+             */
+            id: string;
+            /**
+             * Format: date-time
+             * @description When the session last signed in or refreshed its tokens. Precision is roughly the access-token lifetime, not the last request.
+             */
+            last_refreshed_at: string;
+        };
+        AuthTOTPConfirmBody: {
+            /**
+             * @description A code from the authenticator just set up
+             * @example 123456
+             */
+            mfa_code: string;
+        };
+        AuthTOTPEnrollBody: {
+            /** @description The password the user has now */
+            current_password: string;
+        };
+        AuthTOTPEnrollment: {
+            /**
+             * @description The otpauth:// URI, to show as a QR code
+             * @example otpauth://totp/Gombit:ada@example.com?...
+             */
+            otpauth_uri: string;
+            /**
+             * @description The TOTP secret, base32, to type into an authenticator app
+             * @example JBSWY3DPEHPK3PXP
+             */
+            secret: string;
+        };
+        AuthUserState: {
+            /**
+             * @description True when the account is disabled
+             * @example true
+             */
+            disabled: boolean;
+            /**
+             * Format: int64
+             * @description The user's id
+             * @example 42
+             */
+            id: number;
+        };
+        AuthVerificationResult: {
+            /**
+             * @description True when a new verification message was sent
+             * @example true
+             */
+            sent: boolean;
+        };
+        AuthVerifyEmailBody: {
+            /**
+             * @description The token from the verification message
+             * @example 9f2c...
+             */
+            token: string;
         };
         Capabilities: {
             create: boolean;
@@ -352,11 +890,44 @@ export interface components {
              */
             csrf_token: string;
         };
+        DataAuthEmailChangeRequested: {
+            data: components["schemas"]["AuthEmailChangeRequested"];
+        };
+        DataAuthMFAStatus: {
+            data: components["schemas"]["AuthMFAStatus"];
+        };
+        DataAuthPasswordChangeResult: {
+            data: components["schemas"]["AuthPasswordChangeResult"];
+        };
+        DataAuthPasswordResetRequested: {
+            data: components["schemas"]["AuthPasswordResetRequested"];
+        };
+        DataAuthPasswordResetResult: {
+            data: components["schemas"]["AuthPasswordResetResult"];
+        };
+        DataAuthRecoveryCodes: {
+            data: components["schemas"]["AuthRecoveryCodes"];
+        };
+        DataAuthRevokeResult: {
+            data: components["schemas"]["AuthRevokeResult"];
+        };
+        DataAuthTOTPEnrollment: {
+            data: components["schemas"]["AuthTOTPEnrollment"];
+        };
+        DataAuthUserState: {
+            data: components["schemas"]["AuthUserState"];
+        };
+        DataAuthVerificationResult: {
+            data: components["schemas"]["AuthVerificationResult"];
+        };
         DataCsrfResult: {
             data: components["schemas"]["CsrfResult"];
         };
         DataDeleteResult: {
             data: components["schemas"]["DeleteResult"];
+        };
+        DataListAuthSession: {
+            data: components["schemas"]["AuthSession"][] | null;
         };
         DataLogoutResult: {
             data: components["schemas"]["LogoutResult"];
@@ -396,6 +967,9 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        DataUploadGrant: {
+            data: components["schemas"]["UploadGrant"];
+        };
         DataWebhookAck: {
             data: components["schemas"]["WebhookAck"];
         };
@@ -415,9 +989,12 @@ export interface components {
             error: components["schemas"]["ErrorBody"];
         };
         FieldMeta: {
+            accept?: string[] | null;
             choices?: components["schemas"]["Choice"][] | null;
             default?: string;
             format?: string;
+            /** Format: int64 */
+            max_bytes?: number;
             /** Format: int64 */
             max_length?: number;
             maximum?: string;
@@ -437,6 +1014,11 @@ export interface components {
              * @example ada@example.com
              */
             email: string;
+            /**
+             * @description For an account with multi-factor authentication: a code from its authenticator, or one of its recovery codes. Without it, such an account's login is a 422 on mfa_code.
+             * @example 123456
+             */
+            mfa_code?: string;
             /**
              * @description Account password
              * @example correct-horse
@@ -463,6 +1045,7 @@ export interface components {
             search: string[] | null;
             singular: string;
             slug: string;
+            version?: string;
         };
         PageMeta: {
             /** Format: int64 */
@@ -505,6 +1088,11 @@ export interface components {
              */
             email: string;
             /**
+             * @description True once the user has confirmed they own email (POST /auth/verify-email)
+             * @example false
+             */
+            email_verified: boolean;
+            /**
              * Format: int64
              * @description User identifier
              * @example 1
@@ -545,6 +1133,32 @@ export interface components {
              */
             updated_at: string;
             /** @description Url */
+            url: string;
+        };
+        UploadGrant: {
+            /** @description The file's key; submit it as the field's value once uploaded. */
+            key: string;
+            /** @description Send the file's bytes with this request, before it expires. */
+            upload: components["schemas"]["UploadRequest"];
+        };
+        UploadGrantRequest: {
+            /** @description The file's media type. */
+            content_type: string;
+            /** @description The file's name, kept for display. */
+            filename?: string;
+            /**
+             * Format: int64
+             * @description The file's exact length in bytes.
+             */
+            size: number;
+        };
+        UploadRequest: {
+            /** Format: date-time */
+            expires: string;
+            headers: {
+                [key: string]: string;
+            };
+            method: string;
             url: string;
         };
         WebhookAck: {
@@ -704,6 +1318,44 @@ export interface operations {
             };
         };
     };
+    "admin-resource-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registered model slug */
+                slug: string;
+                /** @description A file or image field of the model */
+                field: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataUploadGrant"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     "admin-resource-get": {
         parameters: {
             query?: never;
@@ -844,6 +1496,130 @@ export interface operations {
             };
         };
     };
+    "auth-request-email-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthEmailChangeBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthEmailChangeRequested"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another confirmation message may be requested */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-confirm-email-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthEmailChangeConfirmBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataPublicUser"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -865,6 +1641,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataPublicUser"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Error */
@@ -910,6 +1715,481 @@ export interface operations {
             };
         };
     };
+    "auth-mfa-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthMFAStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-mfa-disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthMFAProofBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthMFAStatus"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-mfa-recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthMFAProofBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthRecoveryCodes"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-mfa-totp-enroll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthTOTPEnrollBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthTOTPEnrollment"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-mfa-totp-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthTOTPConfirmBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthRecoveryCodes"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthPasswordChangeBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthPasswordChangeResult"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-request-password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthPasswordForgotBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthPasswordResetRequested"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    /** @description Seconds until the server takes a password reset request again */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthPasswordResetBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthPasswordResetResult"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     refresh: {
         parameters: {
             query?: never;
@@ -929,6 +2209,17 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataPublicUser"];
+                };
+            };
+            /** @description No refresh cookie, or a refresh token that is unknown, revoked, expired or reused, or whose user is gone. */
+            401: {
+                headers: {
+                    /** @description Clears gombit_access and gombit_refresh (empty value, Max-Age=0), as logout does, unless another rotation already gave the refresh token a successor: that rotation's response sets the session's new cookies in the same browser. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Error */
@@ -962,6 +2253,337 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataPublicUser"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-list-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataListAuthSession"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-revoke-sessions": {
+        parameters: {
+            query: {
+                /** @description others ends every session except the current one; all ends every session, the current one included */
+                scope: "others" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthRevokeResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-revoke-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id from GET /auth/sessions */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthRevokeResult"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-disable-user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthUserState"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-enable-user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthUserState"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-mfa-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The user's id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthMFAStatus"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthVerifyEmailBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataPublicUser"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another attempt is accepted */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "auth-resend-email-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAuthVerificationResult"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    /** @description Seconds until another verification message may be requested */
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Error */

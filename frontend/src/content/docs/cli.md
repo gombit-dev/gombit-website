@@ -39,6 +39,14 @@ go run ./cmd/gombit --help
 | `gombit worker` | Run the app's background-job worker | JOBS-3 |
 | `gombit jobs …` | Inspect, retry, and delete failed jobs | JOBS-6 |
 | `gombit version` | Print version and build metadata | REL-4 |
+| `gombit upgrade --dry-run` | Plan an upgrade to a framework release, changing nothing | UPGRADE-3 |
+| `gombit upgrade --to` | Apply an upgrade's dependency changes (go.mod, go.sum) with the go command | UPGRADE-4 |
+| `gombit upgrade check` | Report uses of deprecated framework APIs (from type information); exits 1 when there are any | UPGRADE-5 |
+| `gombit upgrade config` | Report an upgrade's configuration changes for the app (never a value from its env files); `--write` upgrades `.env` templates | UPGRADE-7 |
+| `gombit upgrade fix` | Run the framework's codemods: print the patch (default), `--patch FILE`, or `--write` | UPGRADE-6 |
+| `gombit upgrade contract` | Report stale generated contract artifacts (resource `*.gen.go`, OpenAPI document, TypeScript client); `--write` regenerates them | UPGRADE-8 |
+| `gombit upgrade baseline` | Show (or record) the app's upgrade baseline: framework and scaffold versions | UPGRADE-1 |
+| `gombit upgrade notes` | Print upgrade notes from the compatibility manifest | UPGRADE-2 |
 
 ## Generator golden tests
 
@@ -120,7 +128,7 @@ go mod tidy
 | `--auth` | `jwt`, `cookie` | `jwt` |
 | `--ui` | `minimal`, `mui` | `minimal` |
 | `--module` | Go module path | `github.com/example/<name>` |
-| `--framework-version` | gombit version the generated `go.mod` requires | this binary's version |
+| `--framework-version` | gombit version the generated `go.mod` requires | the gombit version this binary reports |
 | `--skip-tidy` | | do not run `go mod tidy` (offline); also skips seeding the bootstrap migration, which needs a tidied module |
 | `--dry-run` | | print the file list without writing |
 | `--force` | | required to write into a non-empty destination |
@@ -176,10 +184,18 @@ and `cli.ExecuteRoot`. Public product routes are Huma-typed under `/api/v1`.
 There is no generated `service.go` or `repo.go` until
 `gombit make resource --service` / `--repo`.
 
-`.env.example` lists `GOMBIT_*` server variables from the `config` package
-and public `VITE_API_URL` (empty means same-origin for the Vite `/api`
-proxy). `VITE_*` is baked into the browser bundle — never put secrets there.
+`.env.example` lists every `GOMBIT_*` server variable the `config` package
+reads (optional ones commented out with their defaults; the cookie-auth
+settings only in `--auth cookie` apps) and public `VITE_API_URL` (empty
+means same-origin for the Vite `/api` proxy). `VITE_*` is baked into the browser bundle — never put secrets there.
 Access tokens stay in memory; generated source does not use `localStorage`.
+
+Files the app stores go to `./storage` by default (the local driver,
+`GOMBIT_STORAGE_LOCAL_ROOT`). `gombit new` does not create it: the driver
+creates it on the first write, and the scaffold's `.gitignore` already
+ignores it. `internal/platform` migrates the framework's tables (auth, and
+the `storage_claims` table that file fields need) with the app's models.
+See [storage.md](/guide/storage).
 
 ## `gombit dev`
 
@@ -382,7 +398,7 @@ The type is any generated kind in [fields.md](/guide/fields): `string`, `text`,
 `int` / `integer`, `int64` / `integer64`, `uint` / `unsigned`, `float` /
 `float64`, `decimal`, `bool` / `boolean`, `date`, `time` / `datetime`,
 `time_of_day`, `duration`, `uuid`, `json`, `email`, `url`, `slug`, `ip`,
-`enum(value)` or `enum(value=Label)`, and the relations `belongs_to`,
+`enum(value)` or `enum(value=Label)`, `file`, `image`, and the relations `belongs_to`,
 `one_to_one`, `has_many`, and `many_to_many`. An unknown type errors with the
 list of supported scalar types (one spelling each; relation kinds are not
 listed).
@@ -397,16 +413,38 @@ Modifiers are `required`, `nullable` (the opposite of `required`), `unique`,
 
 | Type | Go type | Column / contract |
 | --- | --- | --- |
-| `decimal` | `types.Decimal` (wraps `shopspring/decimal`) | `decimal(19,4)`; JSON string, exact — no float rounding |
+| `decimal` | `types.Decimal` (wraps `shopspring/decimal`) | `decimal(19,4)`; JSON string, exact — no float rounding. A value that does not fit is a 422, never rounded; on SQLite at most 15 significant digits (see below) |
 | `decimal(p,s)` | `types.Decimal` | `decimal(p,s)`, e.g. `decimal(10,2)` |
-| `time` | `time.Time` | RFC3339 date-time in JSON |
+| `time` | `time.Time` | RFC3339 date-time in JSON, `1000-01-02T00:00:00Z`..`9999-12-30T23:59:59Z` on every write (see [database.md](/guide/database#timestamp-and-date-range)) |
 | `time_of_day` | `types.TimeOfDay` | `char(8)` clock. `HH:MM`, `HH:MM:SS`, and `15:04:05+07:00` are one pattern, stored as `HH:MM:SS`. Optional is a pointer; a blank submits null |
 | `duration` | `types.Duration` | bigint nanoseconds; JSON is a Go duration (`1h30m0s`). Optional is a pointer |
 | `enum(draft=Draft)` | `string` | stored value `draft`, display label `Draft`. The API enum is the stored value |
+| `file` | `types.File` | the object key, `size:512` unique; the file lives in `App.Storage()`. An upload-grant operation per field; reads return a file object. See [fields.md § Storage-backed fields](/guide/fields#storage-backed-fields). Optional is a pointer |
+| `image` | `types.Image` | as `file`, accepting images only (detected from the bytes) |
 | `belongs_to:Target` | FK `TargetID` + `Target target.Target` | DTO exposes `target_id`; admin renders a picker. The FK type is the target primary key (`uint` or `uuid.UUID`). `nullable` makes the FK a pointer. `on_delete` is `restrict` (the default), `cascade`, or `set_null` |
 | `one_to_one:Target` | unique FK `TargetID` + `Target target.Target` | same wire as `belongs_to`; the foreign key is unique |
 | `has_many:Target` | `[]target.Target` | model-only, read via the admin; the child must carry the parent FK |
 | `many_to_many:Target` | `[]target.Target` (`many2many:` join) | model-only, edited via the admin |
+
+A decimal column never stores a value changed. Any value written to one is
+checked first: a `types.Decimal`, or the string, number, pointer, named type, or
+`sql.Null*` value a map, a struct field, or an upsert carries. One that does not
+fit the column's `decimal(p,s)` (more than `p-s` digits before the point, or
+more than `s` after it, ignoring trailing zeros) is refused with a 422 rather
+than rounded by PostgreSQL or MySQL, and one that is not a decimal number at
+all (`"1,5"`, `"NaN"`, `""`) is refused too. The column type is the one GORM
+emits for the model, which must match the migrated column: `type:decimal(p,s)`.
+A `precision:`/`scale:` tag does not reach the column for `types.Decimal`, and a
+type without `(p,s)`, such as an untagged `types.Decimal`, is MySQL's
+`DECIMAL(10,0)` there (whole numbers only, so pin `type:decimal(p,s)` for money)
+and an unbounded `numeric` on PostgreSQL. SQLite has no fixed-point type: its
+`decimal` column converts through float64, which keeps 15 significant digits,
+so on SQLite a decimal may carry **at most 15 digits**
+(`database.SQLiteDecimalDigits`) and a longer one is a 422 instead of being
+silently changed. `99999999999.9999` round-trips on every driver;
+`99999999999999.9999` fits `decimal(19,4)` on PostgreSQL and MySQL but is
+refused on SQLite. A create responds with the row as stored, the same body a
+later get returns.
 
 `types.Decimal` is the framework money/decimal type. Because a single Go type
 flows through the model, the handler DTO, the OpenAPI/TS contract, and GORM,
@@ -576,9 +614,10 @@ Registration edits use `go/ast` + `go/parser` + `go/format` (never regex).
 (or a user-owned file) is refused unless `--force`. `commands.go` and
 `cmd/gombit/main.go` are additive AST edits of known registration points.
 
-Command names that collide with framework families (`new`, `dev`, `build`,
-`make`, `db`, `openapi`, `client`, `routes`, `doctor`, `config`,
-`createsuperuser`, `version`, `worker`, `jobs`, `help`, `completion`) are rejected.
+Command names that collide with framework families (`new`, `dev`, `worker`,
+`jobs`, `build`, `make`, `generate`, `db`, `openapi`, `contract`, `client`,
+`routes`, `doctor`, `config`, `createsuperuser`, `version`, `help`,
+`completion`) are rejected, as are `gombit` and `register`.
 
 ## `gombit worker`
 
@@ -747,7 +786,16 @@ so a fresh local DB works before Atlas migrations exist. In production it
 never AutoMigrates: schema changes belong to `gombit db migrate`. If the
 users table is missing, the command fails and tells you to migrate first.
 `CreateSuperuser` shares `Register`'s unique-email path — duplicate emails
-are refused with the same error as `/auth/register`.
+are refused with the same error as `/auth/register` — and its rules
+(`auth.CheckNewAccount`), checked before the database is opened: the email
+must be a bare address of at most 255 characters (`admin@example.com`, not
+`admin` or `Root Admin <root@example.com>`), what `POST /auth/login`
+accepts, so the account can sign in; and the password must meet the policy
+a user's own password meets on register, change and reset (at least 8
+characters, at most 72 bytes). Anything else is refused and nothing is
+created. Accounts created before are not touched: one whose email is not
+an address still cannot sign in (delete it and create it again with this
+command); one with a short password keeps working until it is changed.
 
 ### Flags
 
@@ -795,6 +843,22 @@ Version resolution has three tiers, in order:
    carries no ldflags, so the version comes from
    `runtime/debug.ReadBuildInfo()`. `commit` and `built` come from the
    embedded `vcs.revision` / `vcs.time` settings when the build had them.
+
+   A scaffolded app ships its own `cmd/gombit`, and in that binary the main
+   module is the application while Gombit is a dependency, so the version is
+   that dependency's entry in the build info: an app tagged `v1.2.0` still
+   reports the Gombit it was built with, not `v1.2.0`. When the app replaces
+   the framework with a local checkout (or with a fork), no Gombit release is
+   named, so `dev` is reported — the same rule `gombit contract app` and
+   `gombit upgrade` apply to a `go.mod`, read from a different source: this
+   command describes the binary you are holding, those commands the `go.mod`
+   in the current directory (`internal/frameworkmod` reads `go.mod` alone and
+   deliberately knows nothing of a `go.work`).
+   The `vcs.revision` and `vcs.time` settings are recorded for the main module
+   only, so an app's binary reports `unknown` for `commit` and `built` instead
+   of the app's own commit: pairing a Gombit release with a commit nobody can
+   find in the Gombit repository is the same misleading artifact the version
+   line used to be.
 3. **`dev`.** A local `go run ./cmd/gombit` or a build from a checkout
    reports `dev` rather than Go's `(devel)`, with `unknown` for the fields
    that have no source.
@@ -820,3 +884,167 @@ config and `go.mod`, never inferred from the source tree. Writes JSON to stdout
 or `--out`; `--dir` selects the project directory. Fails loudly when the
 framework version is missing or replaced by a local checkout. See
 [app-contract.md](/guide/app-contract).
+
+## `gombit upgrade --dry-run`
+
+Plans upgrading the application to a framework release from the
+compatibility manifest built into this `gombit`, and changes nothing: the
+current and target versions, the dependency change, the automatic changes
+the app needs, every manual action with what to do, the breaking changes,
+the informational ones, and the framework schema changes with the
+migration steps they need for this app (from its model registry). A version the manifest does not list, a
+downgrade, or an app whose baseline names no framework release (a `go.work`,
+a local checkout, a fork) fails with the reason. It never prompts, so it
+runs in CI. See [upgrade.md](/guide/upgrade#planning-an-upgrade).
+
+Without `--dry-run`, `--to vX.Y.Z` applies the plan's dependency changes:
+it edits the framework's replaces the plan names (`go mod edit`), runs `go
+get github.com/gombit-dev/gombit@vX.Y.Z`, and prints every go command and the
+`go.mod` and `go.sum` lines they changed. A go command that fails is shown
+with its full output, a result that does not build the target is refused,
+and either way `go.mod` and `go.sum` are restored. The plan's automatic and
+manual changes are printed as still to do. It never runs a migration: when
+the framework's tables change, it says the upgrade is not complete and
+lists the migration steps (`migration_required` in `--json`). `--to` is
+required there. See
+[upgrade.md](/guide/upgrade#applying-the-dependency-changes).
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--dry-run` | Plan the upgrade and print it | off |
+| `--to` | Target framework release: applied without `--dry-run`, planned with it | with `--dry-run`, the newest release this CLI knows; required to apply |
+| `--dir` | Application directory (`go.mod`, `gombit.yaml`) | `.` |
+| `--json` | Print the plan (or what was applied) as JSON | off |
+| `--migrations` | The app's migration directory (its model registry), relative to `--dir`, as `gombit db --dir` | `database/migrations` |
+
+## `gombit upgrade check`
+
+Reports every use, in the application (every package, tests included), of a
+framework API whose doc comment has a `Deprecated:` paragraph: file, line
+and column, the symbol, and what to use instead. Uses are resolved from type
+information (`go/packages`, `go/types`), never by matching text; the app
+must type-check. When the deprecation names its release (`Deprecated: since
+vX.Y.Z, ...`), a line shows the first release the
+[compatibility policy](/guide/compatibility#deprecations) lets remove the API,
+and `--json` adds `since`, `removable_from` and `removable_from_major`. It exits 1 when there is
+any use. See [upgrade.md](/guide/upgrade#checking-for-deprecated-apis).
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--dir` | Application directory | `.` |
+| `--json` | Print the uses as JSON | off |
+
+## `gombit upgrade config`
+
+Reports what an upgrade's configuration changes mean for the application,
+from the compatibility manifest:
+- **What it covers:** each variable the releases between the app's
+  framework version (or `--from`) and the target rename, remove,
+  re-default, newly require, or newly refuse values of.
+- **Categories:** renamed, default changed, action required, or security
+  review.
+- **For each change:** the app's environment files that set it, and what
+  to do.
+- **Never a secret:** it reads `.env` and `.env.*` and never prints a value
+  from them. Only names are read from files that are not templates.
+- **`--write`:** upgrades the templates (`.env.example` and the like),
+  renaming renamed variables and commenting out removed ones, each with a
+  note. It never writes `.env`.
+- **Exit status:** 1 while any change needs action or review.
+
+See [upgrade.md](/guide/upgrade#configuration-changes).
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--dir` | Application directory | `.` |
+| `--from` | Release to analyze from | the framework version the app builds against |
+| `--to` | Target release | the newest release this CLI knows |
+| `--write` | Upgrade the environment templates (never `.env`) | off |
+| `--json` | Print the report as JSON | off |
+
+## `gombit upgrade contract`
+
+Reports whether the application's generated contract artifacts are what
+generation produces now; run it after `gombit upgrade --to`.
+- **Resource files:** the generator-owned `*.gen.go`, rendered as `gombit
+  generate --check` renders them, with the app's framework version.
+- **OpenAPI document:** the committed `openapi.json`, compared with the
+  running app's (`--url`).
+- **TypeScript client:** compared as `gombit client check` compares it.
+- **`--write`:** regenerates stale artifacts with that same generation,
+  generator-owned files only. A handwritten file is reported, never
+  overwritten.
+- **Dependencies:** while the resource files are not current, the checks
+  against `--url` are unchecked (rebuild and restart the app, then rerun),
+  and `--write` does not write the document or the client.
+- **Exit status:** 1 while anything is left stale, or on a failed write.
+  An artifact it could not check does not fail it unless `--strict`, which
+  a CI gate uses (with `--url`).
+
+See [upgrade.md](/guide/upgrade#generated-contract-artifacts).
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--dir` | Application directory | `.` |
+| `--url` | The running app's OpenAPI document, to check the committed one and generate the client from | — |
+| `--spec` | Committed OpenAPI document, relative to `--dir` | `openapi.json` |
+| `--out` | Generated client directory, relative to `--dir` | `frontend/src/api/generated` |
+| `--write` | Regenerate stale artifacts (generator-owned files only) | off |
+| `--npx` | npx binary that runs openapi-typescript | `npx` |
+| `--json` | Print the report as JSON | off |
+| `--strict` | Also exit 1 when an artifact could not be checked | off |
+
+## `gombit upgrade fix`
+
+Runs the framework's **codemods**: mechanical rewrites of the app's uses of
+framework APIs that a release renamed, moved or reshaped. Uses are resolved
+from type information and rewritten in the syntax tree, never as text.
+Changed files are gofmt-formatted, and the rewrite is type-checked before
+it is proposed. By default it writes nothing: it prints the patch (a
+unified diff, for `git apply`) on stdout and a summary on stderr.
+`--write` rewrites the files atomically, and a second run changes nothing.
+A use a codemod cannot rewrite safely is left unchanged and listed, with
+the reason, and the command exits 1. This gombit ships no codemods yet. See
+[upgrade.md](/guide/upgrade#rewriting-with-codemods).
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--dir` | Application directory | `.` |
+| `--only` | Run only these codemods (IDs, comma-separated) | all |
+| `--patch` | Write the patch to this file instead of stdout | — |
+| `--write` | Rewrite the files in place (not with `--patch`) | off |
+| `--json` | Print the result, patch included, as JSON | off |
+
+## `gombit upgrade baseline`
+
+Shows the application's **upgrade baseline**: the framework version it builds
+against (from `go.mod`) and the scaffold conventions it was generated with
+(recorded in `gombit.yaml` by `gombit new`). An app generated before that
+record existed is detected as scaffold 0; `--write` records it (appending the
+metadata block to `gombit.yaml`, nothing else). `--json` prints JSON, `--dir`
+selects the app. Nothing is written without `--write`. See
+[upgrade.md](/guide/upgrade).
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--dir` | Application directory (`go.mod`, `gombit.yaml`) | `.` |
+| `--json` | Print the baseline as JSON | off |
+| `--write` | Record a detected baseline in `gombit.yaml` | off |
+
+## `gombit upgrade notes`
+
+Prints upgrade notes from the **compatibility manifest** built into this
+`gombit`: each release's upgrade-relevant changes, classified as manual,
+automatic, or informational, with breaking ones marked. The release notes and
+[upgrade-notes.md](/guide/upgrade-notes) are rendered from the same manifest.
+With no flags, it prints every release, newest first. A version the manifest
+does not list fails with the reason (older than its first release, newer than
+this CLI, a pseudo-version, a downgrade). It never guesses. See
+[upgrade.md](/guide/upgrade#the-compatibility-manifest).
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--release` | One release's notes (a version, or `unreleased`) | — |
+| `--from` | The notes of an upgrade from this version | — |
+| `--to` | With `--from`, the target version | the newest release this CLI knows |
+| `--json` | Print the releases and their classified changes as JSON | off |

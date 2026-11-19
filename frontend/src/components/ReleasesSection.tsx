@@ -47,7 +47,7 @@ export function ReleasesSection() {
         if (cancelled) {
           return;
         }
-        setLatest(Array.isArray(listed.data) ? (listed.data[0] ?? null) : null);
+        setLatest(listed && Array.isArray(listed.data) ? (listed.data[0] ?? null) : null);
         setState("ready");
       } catch {
         if (!cancelled) {

@@ -323,8 +323,9 @@ traceable to a log line.
 Errors are constructed with `contract` helpers rather than raw status codes.
 Generated get/create handlers classify GORM errors through
 `database.MapLoadError` / `database.MapPersistError`: a missing row is D10
-`not_found`, a unique violation is `conflict`, and any other driver failure
-is `internal`.
+`not_found`, a unique violation is `conflict`, a value the database refuses
+as data (out of range, too long) is `validation_error`, and any other driver
+failure is `internal`.
 
 ```go
 return nil, contract.WithContext(ctx, contract.NotFound("task not found"))
@@ -680,13 +681,14 @@ You've used the core subsystems. The reference docs go deeper:
 | Cookie auth and CSRF | [auth-cookie.md](/guide/authentication-cookie) |
 | Admin | [admin.md](/guide/admin) |
 | Background jobs | [jobs.md](/guide/jobs) |
+| File storage, uploads, and `file` / `image` fields | [storage.md](/guide/storage), [fields.md](/guide/fields#storage-backed-fields) |
 | Single-binary builds | [build.md](/guide/deployment) |
 | Everything | [docs index](https://github.com/gombit-dev/gombit/blob/main/docs/README.md) |
 
 Architecture rationale lives in the [ADRs](https://github.com/gombit-dev/gombit/tree/main/docs/adr), and current work is tracked
 in [GitHub issues](https://github.com/gombit-dev/gombit/issues). The README's
 [roadmap](https://github.com/gombit-dev/gombit/blob/main/README.md#roadmap) lists the batteries (events, scheduler, mail,
-storage, gRPC, multi-tenancy, i18n) that are deliberately **not** here yet.
+gRPC, multi-tenancy, i18n) that are deliberately **not** here yet.
 
 Something wrong or unclear in this tutorial? That's a docs bug —
 [open an issue](https://github.com/gombit-dev/gombit/issues/new/choose).

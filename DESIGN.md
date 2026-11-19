@@ -172,33 +172,56 @@ deploy.
 gombit.dev/
   /                     landing (marketing)
   /guide/               documentation (at /guide, not /docs — §13 #2)
+    # Getting started
     installation
     tutorial
     cli
+    # Runtime
     configuration             # config.md
     lifecycle                 # framework.App, OnStart/OnStop
+    health                    # /livez + /readyz
     routing                   # router.md + escape hatch
     logging
     caching                   # cache.md
+    storage                   # storage.md: local / memory / S3, uploads
+    jobs                      # background jobs + worker
+    security                  # security headers
+    # Data
     database
     migrations
+    migration-safety
+    validation                # Validate hooks, app.Tx, optimistic locking
+    fields                    # field types, file / image fields
+    # Contract
     contract                  # contract.md + envelope
+    app-contract              # gombit contract app
     openapi
     typescript-client         # client.md + drift check
+    # Frontend
     frontend                  # frontend.md
     frontend-mui
     deployment                # build.md, --embed single binary
-    authentication            # auth.md (bearer)
+    # Auth & admin
+    authentication            # auth.md: bearer, sessions, MFA, OIDC, audit
     authentication-cookie     # auth-cookie.md + CSRF
     admin
+    # Testing
+    fault-injection           # testing/fault-injection.md
+    # Upgrading
+    upgrade                   # gombit upgrade
+    upgrade-notes             # per-release notes (compatibility manifest)
+    compatibility             # compatibility & deprecation policy
+    model-first-resources     # v0.2 migration guide
   /benchmarks/          methodology-first performance page
   /releases/            GitHub releases + AI TL;DR (§6a); seeded from CHANGELOG.md
                         (subsumes /changelog/)
 ```
 
 Docs IA mirrors the framework's own `docs/README.md` groupings (Getting started ·
-Runtime · Data · Contract · Frontend · Auth & admin) so there is one mental model
-across README, in-repo docs, and site.
+Runtime · Data · Contract · Frontend · Auth & admin · Testing) so there is one
+mental model across README, in-repo docs, and site. The site gathers the upgrade
+pages, which upstream lists under Getting started, into their own Upgrading group.
+`frontend/scripts/sync-docs.mjs` holds the authoritative list.
 
 **Top nav:** Docs · Benchmarks · Changelog · GitHub (icon) · theme toggle.
 **Footer:** GitHub, issues, license (MIT), security policy, pkg.go.dev, code of

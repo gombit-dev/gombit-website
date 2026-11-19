@@ -97,10 +97,16 @@ beyond the first page) and the local filter is off; otherwise it filters the
 loaded page client-side. A model registered without a `Search` defaults it to
 its text columns (an explicit empty `Search` opts out), so pickers search out of
 the box.
-`datetime-local` values are converted to RFC3339 before POST/PATCH.
+`datetime-local` values are converted to RFC3339 before POST/PATCH. The edit
+form PATCHes only the fields the operator changed (compared with the values
+it loaded): an untouched field is not written back through the form, which
+shows a datetime to the minute and reads an integer past 2^53 rounded. An
+integer typed past 2^53 is sent as a string, which the server reads exactly.
 Empty optional (non-boolean) inputs — string, text, date, datetime, json,
-number, relation — are sent as JSON `null` so a partial PATCH can clear
-them. Booleans and numeric `0` are always included.
+number, relation — are sent as JSON `null` (on an edit, a field changed to
+empty), so a partial PATCH can clear them. On create, booleans and numeric `0` are always included; an edit sends
+the fields it changed, plus the model's optimistic-lock `version` (meta
+`version`) as loaded, so a concurrent edit is a 409.
 401 (including session expiry on list/detail/edit) returns to login;
 catalog 403 shows a forbidden page; other catalog errors show the D10
 message. Silent `POST /auth/refresh` after a 401 **awaits** CSRF bootstrap
@@ -176,7 +182,10 @@ arbitrary Go types.
 
 - **`Field.Name`** is the JSON object key in meta and in data-plane rows.
   For v1, `Name` is also the GORM/SQL column unless `Field.Column` is set
-  (use that when the Go exported name or GORM column differs).
+  (use that when the Go exported name or GORM column differs). A set
+  `Column` alone picks the model field the admin reads and writes, and `Name`
+  is then only the JSON key; a `Column` the model does not have is a
+  registration error.
 - **Constraints** — `minimum`, `maximum`, `max_length`, `pattern`, `default`,
   `format`, and `choices` — appear in meta when set, and admin writes enforce
   them. A field the registrar leaves empty copies them from the model:
@@ -188,7 +197,12 @@ arbitrary Go types.
   derive the GORM primary key **at Register** and store it. The PK field
   must appear in `Fields`. An auto-increment primary key is read-only.
   A manual primary key is required on create and cannot be changed on
-  update.
+  update. A model whose primary key spans several columns is refused at
+  `Register` (`admin: T has a composite primary key, which is not
+  supported`), the same shape `gombit make resource` rejects: the admin
+  addresses a row by one column, so the other key columns would not be
+  part of the URL. Naming one of them in `PK` does not lift the
+  restriction. Give an admin-managed model a single-column primary key.
 - **Empty `Fields`** derives a default from the struct once, inside
   `Register`, via `admin.FieldsFrom(T)`. That helper may use `reflect`
   **only at registration time**. Do not call it from request handlers.
@@ -218,8 +232,104 @@ arbitrary Go types.
   stored keys, including custom keys, and echo them in meta.
 
 Closed field types: `string`, `text`, `integer`, `float`, `decimal`,
-`boolean`, `datetime`, `date`, `time`, `duration`, `uuid`, `json`, `relation`. These strings are
+`boolean`, `datetime`, `date`, `time`, `duration`, `uuid`, `json`, `file`, `image`, `relation`. These strings are
 the admin projection of the shared vocabulary in [fields.md](/guide/fields).
+
+An integer value must fit the model field's Go type, and the int64 range
+(the column is a signed bigint on PostgreSQL and SQLite): 300 for an `int8`,
+-5 for a `uint`, or 2^63 for a `uint64` is a 422 on that field, never a
+wrapped value, whatever admin type the field is declared as. A JSON number is
+decoded as a float64, which keeps integers exactly only within ±(2^53 - 1),
+so a larger integer is sent as a string (`"9007199254740993"`), which is read
+exactly; as a JSON number it is a 422, unless it is the row's stored value
+rounded the same way, which is the bundled admin UI sending a field back
+unchanged (it sends integers as JSON numbers): the stored value is kept. The
+UI cannot set such an integer to another value; send it as a string through
+the API. The admin stores integers within int64, so a `uint64` above
+9223372036854775807 is a 422 too.
+
+### File and image fields
+
+A `types.File` or `types.Image` column (see
+[fields.md § Storage-backed fields](/guide/fields#storage-backed-fields)) is a
+`file` or `image` field. Its upload policy comes from the model's `storage`
+tag. Without a `prefix`, the field owns `<table>/<column>/`. Meta carries the
+policy as hints: `accept` (media types) and `max_bytes`.
+
+- **Rows** carry a file object: `key`, `filename`, `size`, `content_type`,
+  and `url`, which is signed for 15 minutes unless the file is public.
+  `missing` is `true` when the store no longer has the file. Lists resolve
+  files a few rows at a time.
+- **Uploads:** `POST /api/v1/admin/resources/{slug}/uploads/{field}` with
+  `{size, content_type, filename}` grants one direct upload
+  ([storage.md § Direct uploads](/guide/storage#direct-uploads)). The grant needs
+  the model's create or update permission, and the declared size and type
+  must fit the policy. The grant claims the key as a staged upload (see
+  [storage.md § Cleanup](/guide/storage#cleanup)): the SPA sends the bytes to
+  `_staging/<key>` with the grant, then puts the key in the form, and the
+  write's check promotes the staged object to the key. The app needs the
+  `storage_claims` table (apps made by `gombit new` migrate it).
+- **Writes** take the key, or the row's file object (sending it back keeps
+  the file), or `null` to remove it. A blank key (`""`, or a file object
+  whose `key` is `""`) is `null` too, so a required file field refuses it, on
+  create and on update. A malformed file object (no `key`, or a null or
+  non-string one) is a field error, never a removal. A changed key is accepted only if it is:
+  - an upload that passes the policy by its bytes (a refused file is
+    deleted, unless a record holds it);
+  - under the field's prefix;
+  - granted for this field: the admin's grants are claimed for
+    `admin:<slug>.<field>`, so another field's grant (even under the same
+    prefix) is refused ("is not an upload for this field");
+  - still live: held by no other record, and not expired, swept, or
+    discarded by a failed save ("has expired or was discarded; choose the
+    file again").
+
+  Anything else is a field error: 422 with `fields.<name>`.
+- **Concurrent writers:** an update or a delete is fenced on the file keys
+  it loaded, empty ones included. If another writer attached, replaced or
+  removed a file of the row meanwhile, it matches no row: a 409, nothing
+  written, and its new uploads are discarded. After any failed save (a field
+  error raised inside the write discards them too), the SPA drops the files
+  uploaded for it from the form and asks for them again. An update writes a
+  file column only when it changes its key; an unchanged one is left out of
+  the write.
+- **Fields and storage:** an explicit `Options.Fields` entry for a file or
+  image column must be declared as the column's own kind (`image` for a
+  `types.Image` column, `file` for a `types.File` one): another type would
+  write keys past the upload protocol, and the other kind would change the
+  policy (a `file` field accepts any type), so registration refuses it.
+  File fields need the host's object storage; a host without it cannot
+  register them.
+- **Unmapped file columns:** a file column the admin does not map, because
+  it is hidden (`gombit:"server"`, `gombit:"-"`) or left out of explicit
+  `Fields`, cannot be written at all. Delete is then off, and create too
+  when the column is required (it would store an empty key). Asking for
+  either is a registration error. Updates leave the column out of their
+  write.
+- **Cleanup:** a write moves the record's file claims in its own
+  transaction (`claims.Update`): new keys are held, and replaced or removed
+  ones released. A write that fails (a stale version, say) abandons the new
+  uploads and keeps the old files. Once it commits, the released files are
+  deleted; a delete releases all of the record's files the same way. A failed
+  file delete is retried by the claims sweep, which also removes uploads the
+  operator chose but never saved (the widget uploads as soon as a file is
+  picked). Run `claims.Sweep(ctx, grace)` periodically; one sweep covers every
+  field. A file without a claim (stored before the app adopted claims) is
+  never deleted.
+- **The SPA:**
+  - the list links each file;
+  - the detail page and the form preview an image;
+  - the form's widget uploads a chosen file at once, and offers Remove for an
+    optional field;
+  - the server checks a file's type from its contents, and that must match
+    the type the browser declares: a file whose contents read as another
+    type (a CSV is plain text, a DOCX or XLSX a zip) can be refused after it
+    is uploaded, even on a field that accepts any type. The widget's hint
+    says so.
+
+  The admin page's Content-Security-Policy allows the store's origin, such as
+  an S3 bucket or a CDN, for images and requests, so previews and direct
+  uploads work there too.
 
 Relation `kind` is `belongs_to`, `one_to_one`, `has_many`, or `many_to_many`.
 **`belongs_to`** and **`one_to_one`** are stored as the foreign key on
@@ -227,7 +337,14 @@ create/update. `one_to_one` is the unique foreign key. Auto-derivation
 (`FieldsFrom`) renders the FK column as a relation field (target `slug` = the
 related table, label = the field name of its `name` column when present) so
 the SPA shows a picker instead of a
-bare integer, and the picker submits the selected primary key. **`has_many` is
+bare integer, and the picker submits the selected primary key. The value is
+coerced as the foreign-key column's Go type: a string key (a country code, a
+SKU) is the string sent, byte for byte (`"007"` stays `"007"`; a JSON number
+is refused, as for any string field), an integer key accepts a number or its
+digits as a string (`"7"`), and a uuid key a uuid in its canonical form, as a
+`uuid` field does. A primary key declared as a relation (a shared-key
+`one_to_one`) is read the same way in the path. Filters on the field read
+the value the same way. **`has_many` is
 read-only**: auto-derivation emits it, and when it maps to a real GORM has_many
 association the list/detail responses preload it and return the related
 children's primary keys (the SPA shows them as read-only chips); a `has_many`
@@ -302,13 +419,26 @@ List query parameters:
   every supported driver — SQLite's built-in `LOWER()` folds ASCII only, so
   full Unicode case-folding parity with Django's `icontains` is not
   guaranteed for accented/non-Latin search terms)
-- `ordering` (a field from `Options.Ordering`; prefix `-` for DESC)
+- `ordering` (a field from `Options.Ordering`; prefix `-` for DESC). The
+  list is ordered by the primary key when it is absent, and ends on the
+  primary key, in the requested direction, as the tiebreaker when it is
+  present (`?ordering=-created_at` is `created_at DESC, id DESC`, which an
+  index on `created_at` serves on MySQL/InnoDB, and one on `(created_at, id)`
+  on PostgreSQL), so pages neither repeat nor skip a row
 - one query key per `Options.Filter` field
 
 Row JSON is keyed by registered field names, plus implicit `created_at` /
 `updated_at` when the GORM model has them and they were omitted from
 `Fields`. Create/update accept only writable (non-readonly) fields.
-`PATCH` is partial: omitted keys are left unchanged. A present JSON `null`
+`PATCH` is partial: omitted keys are left unchanged. The update writes only
+the columns whose value the request, a model hook or a GORM callback
+changed from the row as loaded (`database.ScopeEdit`), so another request's
+change to a column this one did not touch is kept, and the response is the
+row read back after the write (a delete landing in between makes it a 404). It never writes the row's associations: a `has_many` child moved
+or deleted meanwhile stays so, and `many_to_many` ids are synced only when the
+request sends them. A row deleted since it was loaded is a 404, not inserted
+again. (Two edits of the same column still race: the last one wins, except
+on a model with a `version` column.) A present JSON `null`
 (or `""` for string/text) clears an optional field — pointer dests become
 SQL NULL, non-pointer strings become `""`, `time.Time` becomes zero,
 `json.RawMessage` / `[]byte` become nil. Required fields with `null` still
@@ -317,7 +447,17 @@ D10 `validation_error` with `fields`. JSON object/array values populate
 `json.RawMessage`, `[]byte`, and nested structs (`json.Unmarshal` /
 `json.Unmarshaler`). UUID strings populate `uuid.UUID`
 (`encoding.TextUnmarshaler` / `sql.Scanner`). `FieldsFrom` infers
-`uuid.UUID` as `uuid`, not `json`.
+`uuid.UUID` as `uuid`, not `json`. A `uuid` value for a `uuid.UUID` field (a
+key, a field, a belongs_to or many-to-many key), written, filtered or named in
+the path, is read as `uuid.Parse` reads it and used in its canonical lower
+case, the form `uuid.UUID` stores: `/resources/docs/3F2B8C1A-…`,
+`{3f2b8c1a-…}`, `urn:uuid:…` and the unhyphenated form all find the row a
+`char(36)` column holds as `3f2b8c1a-…`, on every driver. A Go `string` field
+declared `Type: admin.TypeUUID` must be the hyphenated 36-character form and
+keeps the spelling sent, written and compared: in a text (`char(36)`) column,
+which holds whatever spelling was written, it is found on SQLite and
+PostgreSQL by that spelling only (a native PostgreSQL `uuid` column stores
+and compares any spelling canonically).
 
 The application's public CRUD API stays the feature's own typed Huma
 routes. Admin does not replace them.

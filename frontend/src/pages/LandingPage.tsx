@@ -15,9 +15,12 @@ const compareRows: Array<[string, string]> = [
   ["Migrations", "choose one"],
   ["OpenAPI 3.1", "choose one"],
   ["TypeScript client", "choose one"],
-  ["Auth & sessions", "choose one"],
+  ["Auth, MFA & OIDC sign-in", "choose one"],
+  ["Background jobs", "choose one"],
+  ["File storage (local / S3)", "choose one"],
   ["Django-style admin", "build it"],
   ["React integration", "build it"],
+  ["Planned upgrades", "build it"],
 ];
 
 export function LandingPage() {
@@ -57,7 +60,7 @@ export function LandingPage() {
           <div className="hero-copy">
             <h1>The batteries-included web framework for <span className="go">Go.</span></h1>
             <p className="tagline">Django&apos;s productivity. Go&apos;s runtime.</p>
-            <p className="lede">Build full-stack applications with typed APIs, migrations, authentication, React, and an admin — without assembling the stack yourself.</p>
+            <p className="lede">Build full-stack applications with typed APIs, migrations, authentication, background jobs, file storage, React, and an admin — without assembling the stack yourself.</p>
             <div className="cta-row">
               <a className="btn btn-primary" href="/guide/installation">Get Started</a>
               <a className="btn btn-ghost" href={REPO}>
@@ -137,6 +140,27 @@ export function LandingPage() {
               </div>
               <h3>A real admin</h3>
               <p>Register a model and get a runtime Django-style admin.</p>
+            </article>
+            <article className="card">
+              <div className="icon-tile">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><circle cx="12" cy="16" r="1.4" /></svg>
+              </div>
+              <h3>Accounts, handled</h3>
+              <p>Sessions, email verification, password reset, MFA, OIDC sign-in, and an audit trail.</p>
+            </article>
+            <article className="card">
+              <div className="icon-tile">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5" /><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" /><path d="M10 13h4" /></svg>
+              </div>
+              <h3>Jobs &amp; storage</h3>
+              <p>Typed background jobs with retries, and file uploads to local disk or S3.</p>
+            </article>
+            <article className="card">
+              <div className="icon-tile">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="m8 12 4-4 4 4" /><path d="M12 16V8" /></svg>
+              </div>
+              <h3>Upgrades with a plan</h3>
+              <p><code>gombit upgrade</code> shows what a new release needs from your code, config, and schema.</p>
             </article>
           </div>
         </section>
