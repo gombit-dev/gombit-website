@@ -1,4 +1,5 @@
-h1:qEQd0BgKCoWmYGZxfYpw9OX4Ob0Mm+/guAP5j0lIW2E=
+h1:aNle7XQQW4WhzYkcOMUbuCEY+ijL+xHxs1SaA69rvW4=
 20260829002037_bootstrap.sql h1:3lOkRHrsOmY5W0y7wqQ+44lBjtYSo2bs1CXsa8JuF/w=
 20260829005009_create_releases.sql h1:3qhKBHXBISPmIzhk75fS6nCG5EPyCYkJ1H4B394ITeI=
 20261119172126_upgrade_framework_schema.sql h1:Sp2cnkTl1aDPpo+Ud0oMAylmtP3tLd92kclJe1JXq5s=
+20261122165907_upgrade_framework_schema.sql h1:VrCdNCDOaTknk4/O6PBDwCjyfUCZHQK4hBz4uSJqDQc=

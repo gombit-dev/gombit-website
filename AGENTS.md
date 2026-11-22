@@ -98,7 +98,7 @@ Go as pinned by `go.mod`'s `go` directive, Node 22+, pnpm (`frontend/` uses
 `gombit` CLI at the version pinned in `go.mod`:
 
 ```bash
-go install github.com/gombit-dev/gombit/cmd/gombit@v0.9.0   # match go.mod
+go install github.com/gombit-dev/gombit/cmd/gombit@v0.10.0   # match go.mod
 ```
 
 ## Commands
@@ -133,9 +133,9 @@ gombit db check                 # contract, registry, migrations, schema all con
 ### Re-syncing the docs
 
 ```bash
-# From the gombit release go.mod pins (here v0.9.0):
+# From the gombit release go.mod pins (here v0.10.0):
 git -C ../gombit fetch --tags
-mkdir -p /tmp/gombit-docs && git -C ../gombit archive v0.9.0 docs README.md | tar -x -C /tmp/gombit-docs
+mkdir -p /tmp/gombit-docs && git -C ../gombit archive v0.10.0 docs README.md | tar -x -C /tmp/gombit-docs
 GOMBIT_DOCS_DIR=/tmp/gombit-docs/docs node frontend/scripts/sync-docs.mjs
 ```
 
