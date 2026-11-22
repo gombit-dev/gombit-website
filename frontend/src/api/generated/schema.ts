@@ -413,7 +413,7 @@ export interface paths {
         post?: never;
         /**
          * Revoke one session
-         * @description Returns 404 when the id names no active session, including one that refreshed after it was listed; list again and retry.
+         * @description Returns 404 when the id names no active session: one that ended after it was listed (signed out, revoked or expired). A session keeps its id when it refreshes, so list again to see what is left.
          */
         delete: operations["auth-revoke-session"];
         options?: never;
@@ -752,6 +752,11 @@ export interface components {
         };
         AuthSession: {
             /**
+             * @description The client address the session signed in from: by default only its network (an IPv4 /24 or IPv6 /48), or the full address, or empty, as the server is configured; empty when unknown. Refreshes do not change it.
+             * @example 203.0.113.0/24
+             */
+            client_address: string;
+            /**
              * @description True for the session that made this request
              * @example true
              */
@@ -762,7 +767,7 @@ export interface components {
              */
             expires_at: string;
             /**
-             * @description Opaque session identifier. It changes every time the session refreshes, so list again before revoking.
+             * @description Opaque session identifier, the same for the session's whole life: refreshing does not change it
              * @example 3f6c2a9e0b7d41c58e2f6a1d9c4b7e20
              */
             id: string;
@@ -771,6 +776,13 @@ export interface components {
              * @description When the session last signed in or refreshed its tokens. Precision is roughly the access-token lifetime, not the last request.
              */
             last_refreshed_at: string;
+            /** @description Where the session signed in from, as the application names it; empty unless the application looks locations up. Refreshes do not change it. */
+            location: string;
+            /**
+             * @description The User-Agent header of the request that signed in, as given, cut to 255 bytes; empty when unknown. Refreshes do not change it.
+             * @example Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0
+             */
+            user_agent: string;
         };
         AuthTOTPConfirmBody: {
             /**

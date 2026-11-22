@@ -40,7 +40,7 @@ toolchain (SQLite is cgo), [Atlas](https://atlasgo.io/) for migrations, and the
 `gombit` CLI at the framework version `go.mod` pins:
 
 ```sh
-go install github.com/gombit-dev/gombit/cmd/gombit@v0.9.0
+go install github.com/gombit-dev/gombit/cmd/gombit@v0.10.0
 cp .env.example .env
 gombit dev
 ```
@@ -55,7 +55,7 @@ re-sync. Sync from the gombit release this site runs, not from `main`:
 
 ```sh
 mkdir -p /tmp/gombit-docs
-git -C ../gombit archive v0.9.0 docs README.md | tar -x -C /tmp/gombit-docs
+git -C ../gombit archive v0.10.0 docs README.md | tar -x -C /tmp/gombit-docs
 GOMBIT_DOCS_DIR=/tmp/gombit-docs/docs node frontend/scripts/sync-docs.mjs
 ```
 
